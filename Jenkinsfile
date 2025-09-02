@@ -1,21 +1,9 @@
 pipeline {
     agent { label 'worker-node' }
 
-    tools {
-        maven 'Maven3.8.7'
-        jdk 'Java17'
-    }
-
     environment {
-        SONARQUBE = 'SonarQube' // Name of SonarQube server in Jenkins config
-        NEXUS_CRED = 'nexus-credentials' // Nexus credentials in Jenkins
-        TOMCAT_CRED = 'tomcat-credentials-id' // Tomcat credentials in Jenkins
-        TOMCAT_URL = 'http://your-tomcat-server:8080/manager/text'
-        EMAIL_RECIPIENTS = 'you@example.com'
-    }
-
-    triggers {
-        githubPush()
+        MAVEN_HOME = '/usr/share/maven'
+        SONARQUBE = 'SonarQube'
     }
 
     stages {
@@ -25,13 +13,19 @@ pipeline {
             }
         }
 
-        stage('Build & Test') {
+        stage('Build') {
             steps {
-                sh 'mvn clean test'
+                sh "${MAVEN_HOME}/bin/mvn clean package -DskipTests"
+            }
+        }
+
+        stage('Unit Tests (JUnit)') {
+            steps {
+                sh "${MAVEN_HOME}/bin/mvn test"
             }
             post {
                 always {
-                    junit 'target/surefire-reports/*.xml'
+                    junit '/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -39,36 +33,29 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE}") {
-                    sh 'mvn sonar:sonar'
+                    sh "${MAVEN_HOME}/bin/mvn sonar:sonar"
                 }
             }
         }
 
-        stage('Package') {
+        stage('Upload Artifact to Nexus') {
             steps {
-                sh 'mvn package'
-            }
-        }
-
-        stage('Upload to Nexus') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: "${NEXUS_CRED}",
-                    usernameVariable: 'NEXUS_USER',
-                    passwordVariable: 'NEXUS_PASS'
-                )]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    ),
+                    string(
+                        credentialsId: 'nexus-url',
+                        variable: 'NEXUS_URL'
+                    )
+                ]) {
                     sh """
-                        mvn deploy:deploy-file \
-                            -Durl=https://your-nexus-repo/repository/maven-releases/ \
-                            -DrepositoryId=nexus-repo \
-                            -Dfile=target/NumberGuessGame-1.0-SNAPSHOT.war \
-                            -DgroupId=com.amitverma \
-                            -DartifactId=jenkins-git-integration \
-                            -Dversion=0.0.1-SNAPSHOT \
-                            -Dpackaging=war \
-                            -DgeneratePom=true \
-                            -Dusername=$NEXUS_USER \
-                            -Dpassword=$NEXUS_PASS
+                        ${MAVEN_HOME}/bin/mvn deploy \
+                        -DaltDeploymentRepository=maven-releases::default::${NEXUS_URL} \
+                        -DnexusUsername=$NEXUS_USER \
+                        -DnexusPassword=$NEXUS_PASS
                     """
                 }
             }
@@ -76,15 +63,20 @@ pipeline {
 
         stage('Deploy to Tomcat') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: "${TOMCAT_CRED}",
-                    usernameVariable: 'TOMCAT_USER',
-                    passwordVariable: 'TOMCAT_PASS'
-                )]) {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'tomcat-credentials',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    ),
+                    string(
+                        credentialsId: 'tomcat-ip',
+                        variable: 'TOMCAT_IP'
+                    )
+                ]) {
                     sh """
-                        curl --upload-file target/NumberGuessGame-1.0-SNAPSHOT.war \
-                             $TOMCAT_URL/deploy?path=/NumberGuessGame&update=true \
-                             --user $TOMCAT_USER:$TOMCAT_PASS
+                        ARTIFACT=\$(ls target/*.war | head -n 1)
+                        scp -i \$SSH_KEY \$ARTIFACT \$SSH_USER@\$TOMCAT_IP:/opt/tomcat/webapps/
                     """
                 }
             }
@@ -93,14 +85,52 @@ pipeline {
 
     post {
         success {
-            mail to: "${EMAIL_RECIPIENTS}",
-                 subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Build, test, SonarQube analysis, Nexus upload, and deployment succeeded."
+            withCredentials([usernamePassword(
+                credentialsId: 'email-credentials',
+                usernameVariable: 'EMAIL_USER',
+                passwordVariable: 'EMAIL_PASS'
+            )]) {
+                mail from: "$EMAIL_USER",
+                     to: 'recipient@example.com',
+                     subject: "Jenkins: SUCCESS - ${JOB_NAME} [${BUILD_NUMBER}]",
+                     body: "✅ Build SUCCESSFUL!\nCheck Jenkins console: ${BUILD_URL}",
+                     smtpUsername: "$EMAIL_USER",
+                     smtpPassword: "$EMAIL_PASS"
+            }
         }
+
         failure {
-            mail to: "${EMAIL_RECIPIENTS}",
-                 subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Check Jenkins logs: ${env.BUILD_URL}"
+            withCredentials([usernamePassword(
+                credentialsId: 'email-credentials',
+                usernameVariable: 'EMAIL_USER',
+                passwordVariable: 'EMAIL_PASS'
+            )]) {
+                mail from: "$EMAIL_USER",
+                     to: 'recipient@example.com',
+                     subject: "Jenkins: FAILURE - ${JOB_NAME} [${BUILD_NUMBER}]",
+                     body: "❌ Build FAILED!\nCheck Jenkins console: ${BUILD_URL}",
+                     smtpUsername: "$EMAIL_USER",
+                     smtpPassword: "$EMAIL_PASS"
+            }
+        }
+
+        unstable {
+            withCredentials([usernamePassword(
+                credentialsId: 'email-credentials',
+                usernameVariable: 'EMAIL_USER',
+                passwordVariable: 'EMAIL_PASS'
+            )]) {
+                mail from: "$EMAIL_USER",
+                     to: 'recipient@example.com',
+                     subject: "Jenkins: UNSTABLE - ${JOB_NAME} [${BUILD_NUMBER}]",
+                     body: "⚠ Build is UNSTABLE.\nCheck Jenkins console: ${BUILD_URL}",
+                     smtpUsername: "$EMAIL_USER",
+                     smtpPassword: "$EMAIL_PASS"
+            }
+        }
+
+        always {
+            echo "Pipeline finished. Notifications sent if configured."
         }
     }
 }
