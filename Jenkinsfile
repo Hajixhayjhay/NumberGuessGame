@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         MAVEN_HOME = '/usr/share/maven'
-        SONARQUBE = 'SonarQube'
+        SONARQUBE  = 'SonarQube'
     }
 
     stages {
@@ -25,7 +25,7 @@ pipeline {
             }
             post {
                 always {
-                    junit '/target/surefire-reports/*.xml'
+                    junit 'target/surefire-reports/*.xml'
                 }
             }
         }
@@ -33,7 +33,11 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE}") {
-                    sh "${MAVEN_HOME}/bin/mvn sonar:sonar"
+                    sh """
+                        ${MAVEN_HOME}/bin/mvn sonar:sonar \
+                        -Dsonar.projectKey=NumberGuessGame \
+                        -Dsonar.branch.name=dev
+                    """
                 }
             }
         }
@@ -54,8 +58,8 @@ pipeline {
                     sh """
                         ${MAVEN_HOME}/bin/mvn deploy \
                         -DaltDeploymentRepository=maven-releases::default::${NEXUS_URL} \
-                        -DnexusUsername=$NEXUS_USER \
-                        -DnexusPassword=$NEXUS_PASS
+                        -Dusername=$NEXUS_USER \
+                        -Dpassword=$NEXUS_PASS
                     """
                 }
             }
@@ -76,7 +80,7 @@ pipeline {
                 ]) {
                     sh """
                         ARTIFACT=\$(ls target/*.war | head -n 1)
-                        scp -i \$SSH_KEY \$ARTIFACT \$SSH_USER@\$TOMCAT_IP:/opt/tomcat/webapps/
+                        scp -o StrictHostKeyChecking=no -i \$SSH_KEY \$ARTIFACT \$SSH_USER@\$TOMCAT_IP:/opt/tomcat/webapps/
                     """
                 }
             }
@@ -85,52 +89,6 @@ pipeline {
 
     post {
         success {
-            withCredentials([usernamePassword(
-                credentialsId: 'email-credentials',
-                usernameVariable: 'EMAIL_USER',
-                passwordVariable: 'EMAIL_PASS'
-            )]) {
-                mail from: "$EMAIL_USER",
-                     to: 'recipient@example.com',
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'RECIPIENT_EMAIL')]) {
+                mail to: "$RECIPIENT_EMAIL",
                      subject: "Jenkins: SUCCESS - ${JOB_NAME} [${BUILD_NUMBER}]",
-                     body: "✅ Build SUCCESSFUL!\nCheck Jenkins console: ${BUILD_URL}",
-                     smtpUsername: "$EMAIL_USER",
-                     smtpPassword: "$EMAIL_PASS"
-            }
-        }
-
-        failure {
-            withCredentials([usernamePassword(
-                credentialsId: 'email-credentials',
-                usernameVariable: 'EMAIL_USER',
-                passwordVariable: 'EMAIL_PASS'
-            )]) {
-                mail from: "$EMAIL_USER",
-                     to: 'recipient@example.com',
-                     subject: "Jenkins: FAILURE - ${JOB_NAME} [${BUILD_NUMBER}]",
-                     body: "❌ Build FAILED!\nCheck Jenkins console: ${BUILD_URL}",
-                     smtpUsername: "$EMAIL_USER",
-                     smtpPassword: "$EMAIL_PASS"
-            }
-        }
-
-        unstable {
-            withCredentials([usernamePassword(
-                credentialsId: 'email-credentials',
-                usernameVariable: 'EMAIL_USER',
-                passwordVariable: 'EMAIL_PASS'
-            )]) {
-                mail from: "$EMAIL_USER",
-                     to: 'recipient@example.com',
-                     subject: "Jenkins: UNSTABLE - ${JOB_NAME} [${BUILD_NUMBER}]",
-                     body: "⚠ Build is UNSTABLE.\nCheck Jenkins console: ${BUILD_URL}",
-                     smtpUsername: "$EMAIL_USER",
-                     smtpPassword: "$EMAIL_PASS"
-            }
-        }
-
-        always {
-            echo "Pipeline finished. Notifications sent if configured."
-        }
-    }
-}
