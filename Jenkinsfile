@@ -67,4 +67,28 @@ pipeline {
             withCredentials([string(credentialsId: 'recipient-email', variable: 'RECIPIENT_EMAIL')]) {
                 mail to: "$RECIPIENT_EMAIL",
                      subject: "SUCCESS - ${JOB_NAME} [${BUILD_NUMBER}]",
-                     body: "✅ Bui
+                     body: "✅ Build SUCCESSFUL!\nCheck console: ${BUILD_URL}"
+            }
+        }
+
+        failure {
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'RECIPIENT_EMAIL')]) {
+                mail to: "$RECIPIENT_EMAIL",
+                     subject: "FAILURE - ${JOB_NAME} [${BUILD_NUMBER}]",
+                     body: "❌ Build FAILED!\nCheck console: ${BUILD_URL}"
+            }
+        }
+
+        unstable {
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'RECIPIENT_EMAIL')]) {
+                mail to: "$RECIPIENT_EMAIL",
+                     subject: "UNSTABLE - ${JOB_NAME} [${BUILD_NUMBER}]",
+                     body: "⚠ Build UNSTABLE.\nCheck console: ${BUILD_URL}"
+            }
+        }
+
+        always {
+            echo "Pipeline finished."
+        }
+    }
+}
