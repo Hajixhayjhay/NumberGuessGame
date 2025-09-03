@@ -25,6 +25,46 @@ pipeline {
         stage('Unit Tests (JUnit)') {
             steps {
                 sh "${MAVEN_HOME}/bin/mvn test"
+                junit 'target/surefire-reports/*.xml'
             }
-            post {
-                always {
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv("${SONARQUBE}") {
+                    sh """
+                        ${MAVEN_HOME}/bin/mvn sonar:sonar \
+                        -Dsonar.projectKey=NumberGuessGame \
+                        -Dsonar.branch.name=dev
+                    """
+                }
+            }
+        }
+
+        stage('Upload Artifact to Nexus') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    ),
+                    string(
+                        credentialsId: 'nexus-url',
+                        variable: 'NEXUS_URL'
+                    )
+                ]) {
+                    sh """
+                        ${MAVEN_HOME}/bin/mvn deploy \
+                        -DaltDeploymentRepository=maven-releases::default::${NEXUS_URL} \
+                        -Dusername=$NEXUS_USER \
+                        -Dpassword=$NEXUS_PASS
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
