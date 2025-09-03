@@ -35,12 +35,4 @@ pipeline {
                     sh """
                         ${MAVEN_HOME}/bin/mvn sonar:sonar \
                         -Dsonar.projectKey=NumberGuessGame \
-                        -Dsonar.branch.name=dev
-                    """
-                }
-            }
-        }
-
-        stage('Upload Artifact to Nexus') {
-            steps {
-                withCredentials([
+                        -Dsonar.bran
