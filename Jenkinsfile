@@ -91,4 +91,4 @@ pipeline {
         success {
             withCredentials([string(credentialsId: 'recipient-email', variable: 'RECIPIENT_EMAIL')]) {
                 mail to: "$RECIPIENT_EMAIL",
-                     subject: "Jenkins: SUCCESS - ${JOB_NAME} [${BUILD_NUMBER}]",
+                     subject: "Jenkins: SUCCESS - ${JOB_NAME} [${BUILD_NUMBER}]"
