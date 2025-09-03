@@ -44,27 +44,3 @@ pipeline {
         stage('Upload Artifact to Nexus') {
             steps {
                 withCredentials([
-                    usernamePassword(
-                        credentialsId: 'nexus-credentials',
-                        usernameVariable: 'NEXUS_USER',
-                        passwordVariable: 'NEXUS_PASS'
-                    ),
-                    string(
-                        credentialsId: 'nexus-url',
-                        variable: 'NEXUS_URL'
-                    )
-                ]) {
-                    sh """
-                        ${MAVEN_HOME}/bin/mvn deploy \
-                        -DaltDeploymentRepository=maven-releases::default::${NEXUS_URL} \
-                        -Dusername=$NEXUS_USER \
-                        -Dpassword=$NEXUS_PASS
-                    """
-                }
-            }
-        }
-
-        stage('Deploy to Tomcat') {
-            steps {
-                withCredentials([
-                    sshUserPrivateKey(
