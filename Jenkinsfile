@@ -9,6 +9,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'dev', url: 'https://github.com/papie10/NumberGuessGame.git'
@@ -22,3 +23,8 @@ pipeline {
         }
 
         stage('Unit Tests (JUnit)') {
+            steps {
+                sh "${MAVEN_HOME}/bin/mvn test"
+            }
+            post {
+                always {
