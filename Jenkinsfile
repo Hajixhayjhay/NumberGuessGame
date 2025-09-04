@@ -2,13 +2,15 @@ pipeline {
     agent any
 
     environment {
-        GIT_CREDENTIALS     = 'github-token'            // GitHub token
-        SONAR_TOKEN         = credentials('SonarQube') // Secret Text
-        TOMCAT_CREDENTIALS  = 'tomcat-credentials'     // SSH private key
-        TOMCAT_IP           = credentials('tomcat-ip') // Secret Text
-        NEXUS_CREDENTIALS   = 'nexus-credentials'      // Username + Password
-        NEXUS_URL           = credentials('nexus-url') // Nexus repo URL
-        RECIPIENT_EMAIL     = credentials('recipient-email') // Secret Text
+        GIT_CREDENTIALS       = 'github-token'          // GitHub token
+        SONAR_TOKEN           = credentials('SonarQube') // Secret Text
+        TOMCAT_CREDENTIALS    = 'tomcat-credentials'    // SSH private key
+        TOMCAT_IP             = credentials('tomcat-ip') // Secret Text
+        NEXUS_USER            = credentials('nexus-credentials').username
+        NEXUS_PASS            = credentials('nexus-credentials').password
+        NEXUS_SNAPSHOT_URL    = credentials('nexus-snapshot-url') // Secret Text
+        NEXUS_RELEASE_URL     = credentials('nexus-release-url')  // Secret Text
+        RECIPIENT_EMAIL       = credentials('recipient-email')    // Secret Text
     }
 
     stages {
@@ -38,16 +40,20 @@ pipeline {
 
         stage('Upload to Nexus') {
             steps {
-                echo 'Uploading artifact to Nexus...'
-                withCredentials([
-                    usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}", usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')
-                ]) {
+                script {
+                    // Decide whether snapshot or release
+                    def version = readMavenPom().getVersion()
+                    def nexusUrl = version.endsWith('-SNAPSHOT') ? NEXUS_SNAPSHOT_URL : NEXUS_RELEASE_URL
+
+                    echo "Deploying ${version} to Nexus: ${nexusUrl}"
+
                     sh """
                         /usr/share/maven/bin/mvn deploy \
                             -DskipTests=true \
-                            -DaltDeploymentRepository=nexus::default::$NEXUS_URL \
-                            -Dnexus.username=$NEXUS_USER \
-                            -Dnexus.password=$NEXUS_PASS
+                            -Dnexus.url=${nexusUrl} \
+                            -Dnexus.username=${NEXUS_USER} \
+                            -Dnexus.password=${NEXUS_PASS} \
+                            -DaltDeploymentRepository=nexus::default::${nexusUrl}
                     """
                 }
             }
@@ -55,10 +61,9 @@ pipeline {
 
         stage('Deploy to Tomcat') {
             steps {
-                echo 'Deploying WAR to Tomcat...'
                 sshagent([env.TOMCAT_CREDENTIALS]) {
                     sh """
-                        scp target/NumberGuessGame-1.0-SNAPSHOT.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
+                        scp target/NumberGuessGame-*.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
                         ssh ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
                     """
                 }
@@ -69,13 +74,13 @@ pipeline {
     post {
         success {
             echo 'Pipeline completed successfully!'
-            mail to: "${RECIPIENT_EMAIL}",
+            mail to: RECIPIENT_EMAIL,
                  subject: "SUCCESS: Build ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                  body: "Good news! The build succeeded."
         }
         failure {
             echo 'Pipeline failed!'
-            mail to: "${RECIPIENT_EMAIL}",
+            mail to: RECIPIENT_EMAIL,
                  subject: "FAILURE: Build ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                  body: "Build failed. Check Jenkins for details."
         }

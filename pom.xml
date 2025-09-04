@@ -62,19 +62,17 @@
         </plugins>
     </build>
 
+    <!-- Nexus Deployment -->
     <distributionManagement>
-        <!-- Release repository -->
         <repository>
-            <id>nexus-releases</id>
-            <name>Nexus Releases</name>
-            <url>${nexus.url}</url>
+            <id>nexus-releases</id> <!-- used by Maven to match credentials -->
+            <name>Nexus-releases</name> <!-- human-readable label -->
+            <url>${nexus.release.url}</url> <!-- injected via Jenkins credentials -->
         </repository>
-
-        <!-- Snapshot repository -->
         <snapshotRepository>
-            <id>nexus-snapshots</id>
-            <name>Nexus Snapshots</name>
-            <url>${nexus.url}</url>
+            <id>nexus-snapshots</id> <!-- used by Maven to match credentials -->
+            <name>Nexus-snapshots</name> <!-- human-readable label -->
+            <url>${nexus.snapshot.url}</url> <!-- injected via Jenkins credentials -->
         </snapshotRepository>
     </distributionManagement>
 
