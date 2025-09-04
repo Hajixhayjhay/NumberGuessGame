@@ -2,13 +2,13 @@ pipeline {
     agent any
 
     environment {
-        GIT_CREDENTIALS = 'github-token'
-        SONAR_TOKEN = credentials('SonarQube') // Secret Text
-        TOMCAT_CREDENTIALS = 'tomcat-credentials'
-        TOMCAT_IP = credentials('tomcat-ip')
-        NEXUS_CREDENTIALS = 'nexus-credentials'
-        NEXUS_URL = credentials('nexus-url')
-        RECIPIENT_EMAIL = credentials('recipient-email')
+        GIT_CREDENTIALS   = 'github-token'
+        SONAR_TOKEN       = credentials('SonarQube')       // Secret Text
+        TOMCAT_CREDENTIALS = 'tomcat-credentials'          // SSH Username with private key
+        TOMCAT_IP         = credentials('tomcat-ip')       // Secret Text (IP address)
+        NEXUS_CREDENTIALS = 'nexus-credentials'            // Username + Password
+        NEXUS_URL         = credentials('nexus-url')       // Secret Text (Nexus repo URL)
+        RECIPIENT_EMAIL   = credentials('recipient-email') // Secret Text
     }
 
     stages {
@@ -30,7 +30,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.login=${SONAR_TOKEN}"
+                    sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=${SONAR_TOKEN}"
                 }
             }
         }
@@ -38,18 +38,29 @@ pipeline {
         stage('Upload to Nexus') {
             steps {
                 echo 'Uploading artifact to Nexus...'
-                // Example, replace with actual deployment commands
-                // sh "mvn deploy -Dnexus.username=... -Dnexus.password=..."
+                withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}", 
+                                                 usernameVariable: 'NEXUS_USER', 
+                                                 passwordVariable: 'NEXUS_PASS')]) {
+                    sh """
+                        /usr/share/maven/bin/mvn deploy \
+                            -DskipTests=true \
+                            -Dnexus.url=${NEXUS_URL} \
+                            -Dnexus.username=$NEXUS_USER \
+                            -Dnexus.password=$NEXUS_PASS
+                    """
+                }
             }
         }
 
         stage('Deploy to Tomcat') {
             steps {
                 echo 'Deploying WAR to Tomcat...'
-                sh """
-                    scp -i /var/lib/jenkins/.ssh/tomcat-key target/NumberGuessGame-1.0-SNAPSHOT.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
-                    ssh -i /var/lib/jenkins/.ssh/tomcat-key ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
-                """
+                sshagent([env.TOMCAT_CREDENTIALS]) {
+                    sh """
+                        scp target/NumberGuessGame-1.0-SNAPSHOT.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
+                        ssh ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
+                    """
+                }
             }
         }
     }
