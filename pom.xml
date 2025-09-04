@@ -2,6 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.studentapp</groupId>
@@ -28,6 +29,14 @@
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- ✅ Mockito for unit testing -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>4.11.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -48,21 +57,3 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
                 <version>3.3.2</version>
-            </plugin>
-        </plugins>
-    </build>
-
-    <!-- ✅ Must be inside <project> -->
-    <distributionManagement>
-        <repository>
-            <id>nexus</id>
-            <name>Nexus Releases</name>
-            <url>http://100.24.55.196:8081/repository/maven-releases/</url>
-        </repository>
-        <snapshotRepository>
-            <id>nexus</id>
-            <name>Nexus Snapshots</name>
-            <url>http://100.24.55.196:8081/repository/maven-snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
-</project>
