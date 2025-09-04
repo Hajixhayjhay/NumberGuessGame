@@ -62,17 +62,22 @@ pipeline {
             }
         }
 
-        stage('Deploy to Tomcat') {
-            steps {
-                withCredentials([sshUserPrivateKey(credentialsId: 'tomcat-credentials', keyFileVariable: 'KEY', usernameVariable: 'USER')]) {
-                    sh """
-                        scp -i $KEY target/NumberGuessGame-1.0-SNAPSHOT.war $USER@$(cat tomcat-ip):/opt/tomcat/webapps/
-                        ssh -i $KEY $USER@$(cat tomcat-ip) 'sudo systemctl restart tomcat'
-                    """
-                }
+       stage('Deploy to Tomcat') {
+    steps {
+        withCredentials([sshUserPrivateKey(credentialsId: 'tomcat-credentials', keyFileVariable: 'KEY', usernameVariable: 'USER')]) {
+            script {
+                // Read Tomcat IP from Jenkins secret text credentials
+                def tomcatIp = sh(script: 'echo $tomcat-ip', returnStdout: true).trim()
+                
+                // Copy WAR file to Tomcat server
+                sh """
+                    scp -i $KEY target/NumberGuessGame-1.0-SNAPSHOT.war $USER@${tomcatIp}:/opt/tomcat/webapps/
+                    ssh -i $KEY $USER@${tomcatIp} 'sudo systemctl restart tomcat'
+                """
             }
         }
     }
+}
 
     post {
         success {
