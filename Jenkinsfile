@@ -2,57 +2,93 @@ pipeline {
     agent any
 
     environment {
-        MAVEN_HOME = '/usr/share/maven'
-        SONAR_TOKEN = credentials('sonar-token') // Add your SonarQube token in Jenkins credentials
+        MVN_HOME = '/usr/share/maven' // Adjust if needed
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
-                git branch: 'dev', url: 'https://github.com/Hajixhayjhay/NumberGuessGame1.git', credentialsId: 'Github-token'
+                git(
+                    url: 'https://github.com/Hajixhayjhay/NumberGuessGame1.git',
+                    branch: 'dev',
+                    credentialsId: 'Github-token'
+                )
             }
         }
 
         stage('Build') {
             steps {
-                sh "${MAVEN_HOME}/bin/mvn clean package -DskipTests"
+                sh "${MVN_HOME}/bin/mvn clean package -DskipTests"
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh "${MAVEN_HOME}/bin/mvn test"
+                sh "${MVN_HOME}/bin/mvn test"
                 junit '**/target/surefire-reports/*.xml'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    sh "${MAVEN_HOME}/bin/mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN -Dsonar.projectKey=NumberGuessGame -Dsonar.host.url=http://your-sonarqube-server:9000"
+                withCredentials([string(credentialsId: 'SonarQube', variable: 'SONAR_TOKEN')]) {
+                    sh """
+                        ${MVN_HOME}/bin/mvn sonar:sonar \
+                        -Dsonar.projectKey=NumberGuessGame \
+                        -Dsonar.host.url=https://your-sonarqube-server \
+                        -Dsonar.login=$SONAR_TOKEN
+                    """
+                }
+            }
+        }
+
+        stage('Upload to Nexus') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    ),
+                    string(credentialsId: 'nexus-url', variable: 'NEXUS_URL')
+                ]) {
+                    sh """
+                        ${MVN_HOME}/bin/mvn deploy \
+                        -Dnexus.username=$NEXUS_USER \
+                        -Dnexus.password=$NEXUS_PASS \
+                        -Dnexus.url=$NEXUS_URL
+                    """
                 }
             }
         }
 
         stage('Deploy to Tomcat') {
             steps {
-                sh '''
-                    sudo mkdir -p /opt/tomcat/webapps
-                    sudo cp target/NumberGuessGame-1.0-SNAPSHOT.war /opt/tomcat/webapps/
-                    sudo systemctl restart tomcat
-                '''
+                withCredentials([sshUserPrivateKey(credentialsId: 'tomcat-credentials', keyFileVariable: 'KEY', usernameVariable: 'USER')]) {
+                    sh """
+                        scp -i $KEY target/NumberGuessGame-1.0-SNAPSHOT.war $USER@$(cat tomcat-ip):/opt/tomcat/webapps/
+                        ssh -i $KEY $USER@$(cat tomcat-ip) 'sudo systemctl restart tomcat'
+                    """
+                }
             }
         }
     }
 
     post {
-        always {
-            echo 'Pipeline finished.'
+        success {
+            echo 'Pipeline completed successfully.'
         }
         failure {
-            mail to: 'you@example.com',
-                 subject: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Check Jenkins for details."
+            echo 'Pipeline failed.'
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'EMAIL'),
+                             usernamePassword(credentialsId: 'email-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                mail to: "$EMAIL",
+                     subject: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                     body: "Check Jenkins for details: ${env.BUILD_URL}",
+                     from: "$USER",
+                     replyTo: "$USER",
+                     password: "$PASS"
+            }
         }
     }
 }
