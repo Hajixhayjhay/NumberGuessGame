@@ -62,13 +62,21 @@
         </plugins>
     </build>
 
-    <!-- Nexus Deployment (URL injected via Jenkins at runtime) -->
+    <!-- Nexus Deployment -->
     <distributionManagement>
+        <!-- Releases -->
         <repository>
-            <id>nexus</id>
-            <name>Nexus Releases</name>
-            <url>${nexus.url}</url>
+            <id>nexus-releases</id>
+            <name>Nexus-releases</name>
+            <url>http://172.31.33.184:8081/repository/maven-releases/</url>
         </repository>
+
+        <!-- Snapshots -->
+        <snapshotRepository>
+            <id>nexus-snapshots</id>
+            <name>Nexus-snapshots</name>
+            <url>http://172.31.33.184:8081/repository/maven-snapshots/</url>
+        </snapshotRepository>
     </distributionManagement>
 
 </project>
