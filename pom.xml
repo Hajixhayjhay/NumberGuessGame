@@ -1,88 +1,81 @@
-pipeline {
-    agent any
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-    environment {
-        GIT_CREDENTIALS     = 'github-token'             // GitHub token
-        SONAR_TOKEN         = credentials('SonarQube')  // Secret Text
-        TOMCAT_CREDENTIALS  = 'tomcat-credentials'      // SSH private key
-        TOMCAT_IP           = credentials('tomcat-ip')  // Secret Text
-        NEXUS_CREDENTIALS   = 'nexus-credentials'       // Username + Password
-        NEXUS_URL           = credentials('nexus-url')  // Secret Text
-        RECIPIENT_EMAIL     = credentials('recipient-email') // Secret Text
-    }
+    <modelVersion>4.0.0</modelVersion>
 
-    stages {
-        stage('Checkout SCM') {
-            steps {
-                git branch: 'dev',
-                    url: 'https://github.com/Hajixhayjhay/NumberGuessGame1.git',
-                    credentialsId: "${GIT_CREDENTIALS}"
-            }
-        }
+    <groupId>com.studentapp</groupId>
+    <artifactId>NumberGuessGame</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>war</packaging>
 
-        stage('Build & Test') {
-            steps {
-                sh '/usr/share/maven/bin/mvn clean package -DskipTests=false'
-                junit '**/target/surefire-reports/*.xml'
-            }
-        }
+    <name>Number Guessing Game</name>
+    <url>http://maven.apache.org</url>
 
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=${SONAR_TOKEN}"
-                }
-            }
-        }
+    <dependencies>
+        <!-- Servlet API -->
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+            <version>4.0.1</version>
+            <scope>provided</scope>
+        </dependency>
 
-        stage('Upload to Nexus') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}", 
-                                                 usernameVariable: 'NEXUS_USER', 
-                                                 passwordVariable: 'NEXUS_PASS')]) {
-                    sh """
-                        # Determine if this is a SNAPSHOT or RELEASE
-                        if [[ \$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) == *-SNAPSHOT ]]; then
-                            DEPLOY_URL=${NEXUS_URL}/maven-snapshots/
-                        else
-                            DEPLOY_URL=${NEXUS_URL}/maven-releases/
-                        fi
+        <!-- JUnit -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
 
-                        /usr/share/maven/bin/mvn deploy \
-                            -DskipTests=true \
-                            -DaltDeploymentRepository=nexus::default::\$DEPLOY_URL \
-                            -Dnexus.username=\$NEXUS_USER \
-                            -Dnexus.password=\$NEXUS_PASS
-                    """
-                }
-            }
-        }
+        <!-- Mockito -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>4.11.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
-        stage('Deploy to Tomcat') {
-            steps {
-                echo 'Deploying WAR to Tomcat...'
-                sshagent([env.TOMCAT_CREDENTIALS]) {
-                    sh """
-                        scp target/NumberGuessGame-1.0*.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
-                        ssh ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
-                    """
-                }
-            }
-        }
-    }
+    <build>
+        <plugins>
+            <!-- Compiler -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
+            </plugin>
 
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-            mail to: "${RECIPIENT_EMAIL}",
-                 subject: "SUCCESS: Build ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Good news! The build succeeded."
-        }
-        failure {
-            echo 'Pipeline failed!'
-            mail to: "${RECIPIENT_EMAIL}",
-                 subject: "FAILURE: Build ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Build failed. Check Jenkins for details."
-        }
-    }
-}
+            <!-- WAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.3.2</version>
+            </plugin>
+        </plugins>
+    </build>
+
+    <distributionManagement>
+        <!-- Release repository -->
+        <repository>
+            <id>nexus-releases</id>
+            <name>Nexus Releases</name>
+            <url>${nexus.url}</url>
+        </repository>
+
+        <!-- Snapshot repository -->
+        <snapshotRepository>
+            <id>nexus-snapshots</id>
+            <name>Nexus Snapshots</name>
+            <url>${nexus.url}</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+</project>
