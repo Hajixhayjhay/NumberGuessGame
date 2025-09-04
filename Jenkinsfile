@@ -2,16 +2,16 @@ pipeline {
     agent any
 
     environment {
-        GIT_CREDENTIALS       = 'github-token'
-        SONAR_TOKEN           = credentials('SonarQube')       // Secret Text
-        TOMCAT_CREDENTIALS    = 'tomcat-credentials'          // SSH Username with private key
-        TOMCAT_IP             = credentials('tomcat-ip')       // Secret Text
-        NEXUS_CREDENTIALS     = 'nexus-credentials'            // Username + Password
-        NEXUS_URL             = credentials('nexus-url')       // Secret Text (Nexus repo URL)
-        RECIPIENT_EMAIL       = credentials('recipient-email') // Secret Text
+        GIT_CREDENTIALS     = 'github-token'            // GitHub token
+        SONAR_TOKEN         = credentials('SonarQube') // Secret Text
+        TOMCAT_CREDENTIALS  = 'tomcat-credentials'     // SSH private key
+        TOMCAT_IP           = credentials('tomcat-ip') // Secret Text
+        NEXUS_CREDENTIALS   = 'nexus-credentials'      // Username + Password
+        RECIPIENT_EMAIL     = credentials('recipient-email') // Secret Text
     }
 
     stages {
+
         stage('Checkout SCM') {
             steps {
                 git branch: 'dev',
