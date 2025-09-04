@@ -12,7 +12,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'dev', url: 'https://github.com/papie10/NumberGuessGame.git'
+                git branch: 'dev', url: 'https://github.com/Hajixhayjhay/NumberGuessGame1.git'
             }
         }
 
