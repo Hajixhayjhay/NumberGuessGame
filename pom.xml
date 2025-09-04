@@ -1,4 +1,3 @@
-
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -52,13 +51,18 @@
             </plugin>
         </plugins>
     </build>
-</project>
 
-<distributionManagement>
+    <!-- ✅ Must be inside <project> -->
+    <distributionManagement>
         <repository>
             <id>nexus</id>
             <name>Nexus Releases</name>
-            <url>http://http://35.176.215.222:8081/repository/maven-releases/</url>
+            <url>http://100.24.55.196:8081/repository/maven-releases/</url>
         </repository>
+        <snapshotRepository>
+            <id>nexus</id>
+            <name>Nexus Snapshots</name>
+            <url>http://100.24.55.196:8081/repository/maven-snapshots/</url>
+        </snapshotRepository>
     </distributionManagement>
 </project>
