@@ -7,6 +7,7 @@ pipeline {
         TOMCAT_CREDENTIALS  = 'tomcat-credentials'     // SSH private key
         TOMCAT_IP           = credentials('tomcat-ip') // Secret Text
         NEXUS_CREDENTIALS   = 'nexus-credentials'      // Username + Password
+        NEXUS_URL           = credentials('nexus-url') // Nexus repo URL
         RECIPIENT_EMAIL     = credentials('recipient-email') // Secret Text
     }
 
@@ -39,13 +40,12 @@ pipeline {
             steps {
                 echo 'Uploading artifact to Nexus...'
                 withCredentials([
-                    usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}", usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS'),
-                    string(credentialsId: 'nexus-url', variable: 'NEXUS_URL')
+                    usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}", usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')
                 ]) {
                     sh """
                         /usr/share/maven/bin/mvn deploy \
                             -DskipTests=true \
-                            -Dnexus.url=$NEXUS_URL \
+                            -DaltDeploymentRepository=nexus::default::$NEXUS_URL \
                             -Dnexus.username=$NEXUS_USER \
                             -Dnexus.password=$NEXUS_PASS
                     """
