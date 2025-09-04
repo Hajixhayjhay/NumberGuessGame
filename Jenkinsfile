@@ -2,13 +2,13 @@ pipeline {
     agent any
 
     environment {
-        GIT_CREDENTIALS   = 'github-token'
-        SONAR_TOKEN       = credentials('SonarQube')       // Secret Text
-        TOMCAT_CREDENTIALS = 'tomcat-credentials'          // SSH Username with private key
-        TOMCAT_IP         = credentials('tomcat-ip')       // Secret Text (IP address)
-        NEXUS_CREDENTIALS = 'nexus-credentials'            // Username + Password
-        NEXUS_URL         = credentials('nexus-url')       // Secret Text (Nexus repo URL)
-        RECIPIENT_EMAIL   = credentials('recipient-email') // Secret Text
+        GIT_CREDENTIALS    = 'github-token'
+        SONAR_TOKEN        = credentials('SonarQube')          // Secret Text
+        TOMCAT_CREDENTIALS = 'tomcat-credentials'             // SSH Username with private key
+        TOMCAT_IP          = credentials('tomcat-ip')         // Secret Text (IP)
+        NEXUS_CREDENTIALS  = 'nexus-credentials'             // Username + Password
+        NEXUS_URL          = credentials('nexus-url')         // Secret Text (Nexus repo URL)
+        RECIPIENT_EMAIL    = credentials('recipient-email')   // Secret Text
     }
 
     stages {
@@ -38,13 +38,15 @@ pipeline {
         stage('Upload to Nexus') {
             steps {
                 echo 'Uploading artifact to Nexus...'
-                withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}", 
-                                                 usernameVariable: 'NEXUS_USER', 
-                                                 passwordVariable: 'NEXUS_PASS')]) {
+                withCredentials([
+                    usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}",
+                                     usernameVariable: 'NEXUS_USER',
+                                     passwordVariable: 'NEXUS_PASS'),
+                    string(credentialsId: 'nexus-url', variable: 'NEXUS_URL')
+                ]) {
                     sh """
-                        /usr/share/maven/bin/mvn deploy \
-                            -DskipTests=true \
-                            -Dnexus.url=${NEXUS_URL} \
+                        /usr/share/maven/bin/mvn deploy -DskipTests=true \
+                            -Dnexus.url=$NEXUS_URL \
                             -Dnexus.username=$NEXUS_USER \
                             -Dnexus.password=$NEXUS_PASS
                     """
