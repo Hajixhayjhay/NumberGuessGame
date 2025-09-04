@@ -1,6 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
@@ -12,12 +13,6 @@
 
     <name>Number Guessing Game</name>
 
-    <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <nexus.url>${nexus.url}</nexus.url> <!-- placeholder for URL -->
-    </properties>
-
     <dependencies>
         <!-- Servlet API -->
         <dependency>
@@ -26,6 +21,7 @@
             <version>4.0.1</version>
             <scope>provided</scope>
         </dependency>
+
         <!-- JUnit -->
         <dependency>
             <groupId>junit</groupId>
@@ -33,6 +29,7 @@
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
+
         <!-- Mockito -->
         <dependency>
             <groupId>org.mockito</groupId>
@@ -44,11 +41,18 @@
 
     <build>
         <plugins>
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
             </plugin>
+
+            <!-- WAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
@@ -57,17 +61,14 @@
         </plugins>
     </build>
 
+    <!-- Nexus Deployment -->
     <distributionManagement>
         <repository>
             <id>nexus</id>
             <name>Nexus Releases</name>
-            <url>${nexus.url}</url>
+            <!-- URL will be passed via Jenkins -D parameter -->
+            <url>http://placeholder-url</url>
         </repository>
-        <snapshotRepository>
-            <id>nexus</id>
-            <name>Nexus Snapshots</name>
-            <url>${nexus.url}</url>
-        </snapshotRepository>
     </distributionManagement>
 
 </project>
