@@ -2,50 +2,101 @@ pipeline {
     agent any
 
     environment {
-        GIT_REPO        = 'https://github.com/Hajixhayjhay/NumberGuessGame1.git'
-        APP_NAME        = 'NumberGuessGame'
-        DOCKER_IMAGE    = 'number-guess-game:latest'
-        TOMCAT_IP       = credentials('tomcat-server-ip')
-        TOMCAT_USER     = credentials('tomcat-ssh-user')
-        TOMCAT_KEY      = credentials('tomcat-ssh-key')
-        RECIPIENT_EMAIL = 'your_email@example.com'
+        // General
+        GIT_REPO      = 'https://github.com/Hajixhayjhay/NumberGuessGame1.git'
+        BRANCH        = 'dev'
+
+        // Nexus
+        NEXUS_SNAPSHOT_URL = credentials('nexus-snapshot-url')
+        NEXUS_RELEASE_URL  = credentials('nexus-release-url')
+        NEXUS_URL          = credentials('nexus-url')
+
+        // SonarQube
+        SONARQUBE_URL      = credentials('SonarQube')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git "${GIT_REPO}"
+                git branch: "${BRANCH}",
+                    url: "${GIT_REPO}",
+                    credentialsId: 'Github-token'
             }
         }
 
         stage('Build') {
             steps {
-                sh 'mvn clean package'
+                echo "Building project..."
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Test') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE} ."
+                echo "Running tests..."
+                sh 'mvn test'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withCredentials([string(credentialsId: 'SonarQube', variable: 'SONAR_TOKEN')]) {
+                    sh """
+                        mvn sonar:sonar \
+                          -Dsonar.host.url=${SONARQUBE_URL} \
+                          -Dsonar.login=${SONAR_TOKEN}
+                    """
+                }
+            }
+        }
+
+        stage('Upload to Nexus') {
+            steps {
+                echo "Uploading artifact to Nexus..."
+                withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
+                    sh """
+                        mvn deploy \
+                          -DaltDeploymentRepository=snapshots::default::${NEXUS_SNAPSHOT_URL} \
+                          -Dnexus.username=${NEXUS_USER} \
+                          -Dnexus.password=${NEXUS_PASS}
+                    """
+                }
             }
         }
 
         stage('Deploy to Tomcat') {
             steps {
-                sh """
-                    scp -o StrictHostKeyChecking=no -i ${TOMCAT_KEY} target/${APP_NAME}.war ${TOMCAT_USER}@${TOMCAT_IP}:/opt/tomcat/webapps/
-                    ssh -o StrictHostKeyChecking=no -i ${TOMCAT_KEY} ${TOMCAT_USER}@${TOMCAT_IP} 'sudo systemctl restart tomcat'
-                """
+                echo "Deploying WAR to Tomcat..."
+                withCredentials([
+                    sshUserPrivateKey(credentialsId: 'tomcat-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER'),
+                    string(credentialsId: 'tomcat-ip', variable: 'TOMCAT_IP')
+                ]) {
+                    sh """
+                        scp -i $SSH_KEY target/*.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+                        ssh -i $SSH_KEY $SSH_USER@$TOMCAT_IP "sudo systemctl restart tomcat"
+                    """
+                }
             }
         }
     }
 
     post {
         always {
-            script {
-                mail to: "${env.RECIPIENT_EMAIL}",
-                     subject: "Jenkins Pipeline Result: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                     body: "Build Status: ${currentBuild.currentResult}\nCheck console: ${env.BUILD_URL}"
+            // Email notification
+            withCredentials([
+                string(credentialsId: 'recipient-email', variable: 'RECIPIENT_EMAIL'),
+                usernamePassword(credentialsId: 'email-credentials', usernameVariable: 'EMAIL_USER', passwordVariable: 'EMAIL_PASS')
+            ]) {
+                mail to: "${RECIPIENT_EMAIL}",
+                     from: "${EMAIL_USER}",
+                     subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER}: ${currentBuild.currentResult}",
+                     body: """\
+Hello,
+
+The Jenkins job *${env.JOB_NAME}* (build #${env.BUILD_NUMBER}) finished with status: ${currentBuild.currentResult}.
+
+Check details here: ${env.BUILD_URL}
+"""
             }
         }
     }
