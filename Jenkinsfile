@@ -7,21 +7,23 @@ pipeline {
 
         // SonarQube
         SONARQUBE_ENV      = 'SonarQube'
-        SONAR_TOKEN        = credentials('SonarQube')   // Secret Text
+        SONAR_TOKEN        = 'SonarQube'
 
         // Tomcat
         TOMCAT_CREDENTIALS = 'tomcat-credentials'
-        TOMCAT_IP          = credentials('tomcat-ip')   // Secret Text
+        TOMCAT_IP          = 'tomcat-ip'
 
         // Nexus
         NEXUS_CREDENTIALS  = 'nexus-credentials'
-        NEXUS_RELEASE_URL  = credentials('nexus-release-url')
+        NEXUS_RELEASE_URL  = 'http://34.229.160.201:8081/nexus/content/repositories/releases/'
+        NEXUS_SNAPSHOT_URL = 'http://34.229.160.201:8081/nexus/content/repositories/snapshots/'
 
         // Email
-        TO_EMAIL           = credentials('recipient-email')
+        TO_EMAIL           = 'recipient-email'
     }
 
     stages {
+
         stage('Checkout SCM') {
             steps {
                 git branch: 'dev',
@@ -40,42 +42,50 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
-                    sh """
-                        /usr/share/maven/bin/mvn sonar:sonar \
-                            -Dsonar.token=${SONAR_TOKEN}
-                    """
+                    withCredentials([string(credentialsId: "${SONAR_TOKEN}", variable: 'SONAR_TOKEN')]) {
+                        sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN"
+                    }
                 }
             }
         }
 
-        stage('Upload Snapshot to Nexus') {
-    steps {
-        echo 'Uploading SNAPSHOT artifact to Nexus...'
-        withCredentials([
-            usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS'),
-            string(credentialsId: 'nexus-snapshot-url', variable: 'NEXUS_SNAPSHOT_URL')
-        ]) {
-            sh """
-                /usr/share/maven/bin/mvn deploy \
-                    -DskipTests=true \
-                    -DaltDeploymentRepository=nexus::default::${NEXUS_SNAPSHOT_URL} \
-                    -Dnexus.username=$NEXUS_USER \
-                    -Dnexus.password=$NEXUS_PASS
-            """
-        }
-    }
-}
+        stage('Upload to Nexus') {
+            steps {
+                script {
+                    // Detect if this is a snapshot
+                    def isSnapshot = sh(
+                        script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout | grep SNAPSHOT || true",
+                        returnStatus: true
+                    ) == 0
 
+                    def repoUrl = isSnapshot ? "${NEXUS_SNAPSHOT_URL}" : "${NEXUS_RELEASE_URL}"
+                    echo "Deploying to Nexus repository: ${repoUrl}"
+
+                    withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}",
+                                                     usernameVariable: 'NEXUS_USER',
+                                                     passwordVariable: 'NEXUS_PASS')]) {
+                        sh """
+                            /usr/share/maven/bin/mvn deploy \
+                                -DskipTests=true \
+                                -DaltDeploymentRepository=nexus::default::${repoUrl} \
+                                -Dnexus.username=$NEXUS_USER \
+                                -Dnexus.password=$NEXUS_PASS
+                        """
+                    }
+                }
+            }
+        }
 
         stage('Deploy to Tomcat') {
             steps {
                 echo 'Deploying WAR to Tomcat...'
                 withCredentials([sshUserPrivateKey(credentialsId: "${TOMCAT_CREDENTIALS}",
                                                   keyFileVariable: 'SSH_KEY',
-                                                  usernameVariable: 'SSH_USER')]) {
+                                                  usernameVariable: 'SSH_USER'),
+                                 string(credentialsId: "${TOMCAT_IP}", variable: 'TOMCAT_IP')]) {
                     sh """
-                        scp -i $SSH_KEY target/NumberGuessGame-1.0.war $SSH_USER@${TOMCAT_IP}:/opt/tomcat/webapps/
-                        ssh -i $SSH_KEY $SSH_USER@${TOMCAT_IP} 'sudo systemctl restart tomcat'
+                        scp -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+                        ssh -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
                     """
                 }
             }
@@ -85,12 +95,15 @@ pipeline {
     post {
         success {
             echo '✅ Pipeline completed successfully!'
+            mail to: "${TO_EMAIL}",
+                 subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
+                 body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
         }
         failure {
             echo '❌ Pipeline failed!'
             mail to: "${TO_EMAIL}",
-                 subject: "Jenkins Pipeline Failed: ${currentBuild.fullDisplayName}",
-                 body: "Check console output at ${env.BUILD_URL}"
+                 subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
+                 body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
         }
     }
 }
