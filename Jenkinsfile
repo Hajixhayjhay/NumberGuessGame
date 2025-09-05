@@ -46,17 +46,25 @@ pipeline {
             }
         }
 
-        stage('Upload to Nexus SNAPSHOT') {
-            when {
-                branch 'dev'
-            }
+        
+        stage('Upload to Nexus') {
             steps {
-                sh """
-                    /usr/share/maven/bin/mvn deploy \
-                    -DaltDeploymentRepository=snapshot::default::${NEXUS_SNAPSHOT_URL}
-                """
+                echo 'Uploading artifact to Nexus...'
+                withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}",
+                                                 usernameVariable: 'NEXUS_USER',
+                                                 passwordVariable: 'NEXUS_PASS'),
+                                 string(credentialsId: "${NEXUS_URL}", variable: 'NEXUS_URL')]) {
+                    sh """
+                        /usr/share/maven/bin/mvn deploy \
+                            -DskipTests=true \
+                            -Dnexus.url=$NEXUS_URL \
+                            -Dnexus.username=$NEXUS_USER \
+                            -Dnexus.password=$NEXUS_PASS
+                    """
+                }
             }
         }
+
         stage('Deploy to Tomcat') {
             steps {
                 echo 'Deploying WAR to Tomcat...'
