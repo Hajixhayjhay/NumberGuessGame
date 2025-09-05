@@ -42,9 +42,11 @@ pipeline {
 
     post {
         always {
-            mail to: "${RECIPIENT_EMAIL}",
-                 subject: "Jenkins Pipeline Result: ${currentBuild.fullDisplayName}",
-                 body: "Build Status: ${currentBuild.currentResult}"
+            script {
+                mail to: "${env.RECIPIENT_EMAIL}",
+                     subject: "Jenkins Pipeline Result: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                     body: "Build Status: ${currentBuild.currentResult}\nCheck console: ${env.BUILD_URL}"
+            }
         }
     }
 }
