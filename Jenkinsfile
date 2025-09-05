@@ -7,8 +7,6 @@ pipeline {
         NEXUS_RELEASE_URL   = credentials('nexus-release-url')
         SONAR_TOKEN         = credentials('SonarQube')
         RECIPIENT_EMAIL     = credentials('recipient-email')
-        EMAIL_CRED_USR      = credentials('email-credentials').username
-        EMAIL_CRED_PSW      = credentials('email-credentials').password
     }
 
     stages {
@@ -49,13 +47,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['tomcat-credentials']) {
                     sh """
-                    # Create directory with sudo
                     ssh -o StrictHostKeyChecking=no ubuntu@${TOMCAT_IP} 'sudo mkdir -p /opt/tomcat/webapps'
-
-                    # Copy WAR file to Tomcat
                     scp -o StrictHostKeyChecking=no target/NumberGuessGame-1.0.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
-
-                    # Restart Tomcat using sudo
                     ssh -o StrictHostKeyChecking=no ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
                     """
                 }
@@ -65,6 +58,7 @@ pipeline {
 
     post {
         always {
+            // Inject username/password here using withCredentials
             withCredentials([usernamePassword(credentialsId: 'email-credentials', 
                                              usernameVariable: 'EMAIL_CRED_USR', 
                                              passwordVariable: 'EMAIL_CRED_PSW')]) {
