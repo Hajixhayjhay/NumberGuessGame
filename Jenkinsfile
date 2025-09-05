@@ -71,26 +71,28 @@ pipeline {
         }
 
         stage('Deploy to Tomcat') {
-            steps {
-                echo 'Deploying WAR to Tomcat...'
-                withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: 'tomcat-credentials',
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
-                    )
-                ]) {
-                    sh """
-                        # SCP WAR to Tomcat
-                        scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
-                        
-                        # Restart Tomcat
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
-                    """
-                }
-            }
+    steps {
+        echo 'Deploying WAR to Tomcat...'
+        withCredentials([
+            sshUserPrivateKey(
+                credentialsId: 'tomcat-credentials',  // your saved SSH key + username
+                keyFileVariable: 'SSH_KEY',
+                usernameVariable: 'SSH_USER'
+            )
+        ]) {
+            sh """
+                # Copy WAR to Tomcat server
+                scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/home/ubuntu/
+
+                # Move WAR into Tomcat's webapps (requires sudo)
+                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo mv /home/ubuntu/NumberGuessGame-1.0-SNAPSHOT.war /opt/tomcat/webapps/'
+
+                # Restart Tomcat
+                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
+            """
         }
     }
+}
 
     post {
         success {
