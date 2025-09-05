@@ -49,32 +49,30 @@ pipeline {
             }
         }
 
-        stage('Upload to Nexus') {
-            steps {
-                script {
-                    // Detect if this is a snapshot
-                    def isSnapshot = sh(
-                        script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout | grep SNAPSHOT || true",
-                        returnStatus: true
-                    ) == 0
-
-                    def repoUrl = isSnapshot ? "${NEXUS_SNAPSHOT_URL}" : "${NEXUS_RELEASE_URL}"
-                    echo "Deploying to Nexus repository: ${repoUrl}"
-
-                    withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}",
-                                                     usernameVariable: 'NEXUS_USER',
-                                                     passwordVariable: 'NEXUS_PASS')]) {
-                        sh """
-                            /usr/share/maven/bin/mvn deploy \
-                                -DskipTests=true \
-                                -DaltDeploymentRepository=nexus::default::${repoUrl} \
-                                -Dnexus.username=$NEXUS_USER \
-                                -Dnexus.password=$NEXUS_PASS
-                        """
-                    }
-                }
-            }
+        stage('Upload to Nexus Snapshot') {
+    steps {
+        echo 'Uploading artifact to Nexus Snapshot repository...'
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'nexus-credentials',
+                usernameVariable: 'NEXUS_USER',
+                passwordVariable: 'NEXUS_PASS'
+            ),
+            string(
+                credentialsId: 'nexus-snapshot-url',
+                variable: 'NEXUS_SNAPSHOT_URL'
+            )
+        ]) {
+            sh """
+                /usr/share/maven/bin/mvn deploy \
+                    -DskipTests=true \
+                    -DaltDeploymentRepository=nexus-snapshots::default::$NEXUS_SNAPSHOT_URL \
+                    -Dnexus.username=$NEXUS_USER \
+                    -Dnexus.password=$NEXUS_PASS
+            """
         }
+    }
+}
 
         stage('Deploy to Tomcat') {
             steps {
