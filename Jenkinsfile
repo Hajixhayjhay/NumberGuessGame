@@ -11,15 +11,12 @@ pipeline {
 
         // Tomcat
         TOMCAT_CREDENTIALS = 'tomcat-credentials'
-        TOMCAT_IP          = 'tomcat-ip'
+        TOMCAT_IP          = '3.12.34.56'  // your public Tomcat IP
 
         // Nexus
         NEXUS_CREDENTIALS  = 'nexus-credentials'
         NEXUS_RELEASE_URL  = 'http://34.229.160.201:8081/nexus/content/repositories/releases/'
         NEXUS_SNAPSHOT_URL = 'http://34.229.160.201:8081/nexus/content/repositories/snapshots/'
-
-        // Email
-        TO_EMAIL           = 'recipient-email'
     }
 
     stages {
@@ -74,41 +71,50 @@ pipeline {
         }
 
         stage('Deploy to Tomcat') {
-    steps {
-        echo 'Deploying WAR to Tomcat...'
-        withCredentials([
-            sshUserPrivateKey(
-                credentialsId: 'tomcat-credentials',  // your Jenkins SSH credential ID
-                keyFileVariable: 'SSH_KEY',           // path to private key
-                usernameVariable: 'SSH_USER'          // SSH username
-            )
-        ]) {
-            sh """
-                # SCP WAR to Tomcat
-                scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@3.12.34.56:/opt/tomcat/webapps/
-                
-                # Restart Tomcat
-                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@3.12.34.56 'sudo systemctl restart tomcat'
-            """
+            steps {
+                echo 'Deploying WAR to Tomcat...'
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'tomcat-credentials',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
+                    sh """
+                        # SCP WAR to Tomcat
+                        scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+                        
+                        # Restart Tomcat
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
+                    """
+                }
+            }
         }
     }
-}
 
     post {
         success {
-            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
-                echo '✅ Pipeline completed successfully!'
-                mail to: "${TO_EMAIL}",
-                     subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
-                     body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+            withCredentials([string(credentialsId: 'email-credentials', variable: 'TO_EMAIL')]) {
+                script {
+                    echo '✅ Pipeline completed successfully!'
+                    mail(
+                        to: env.TO_EMAIL,
+                        subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
+                        body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+                    )
+                }
             }
         }
         failure {
-            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
-                echo '❌ Pipeline failed!'
-                mail to: "${TO_EMAIL}",
-                     subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
-                     body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+            withCredentials([string(credentialsId: 'email-credentials', variable: 'TO_EMAIL')]) {
+                script {
+                    echo '❌ Pipeline failed!'
+                    mail(
+                        to: env.TO_EMAIL,
+                        subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
+                        body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+                    )
+                }
             }
         }
     }
