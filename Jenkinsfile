@@ -37,15 +37,14 @@ pipeline {
                 sh 'mvn test'
             }
         }
-
         stage('SonarQube Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'SonarQube', variable: 'SONAR_TOKEN')]) {
-                    sh """
+                withCredentials([string(credentialsId: 'SonarQube', variable: 'SONAR_HOST_URL')]) {
+                    sh '''
                         mvn sonar:sonar \
-                          -Dsonar.host.url=${SONARQUBE_URL} \
-                          -Dsonar.login=${SONAR_TOKEN}
-                    """
+                          -Dsonar.host.url=$SONAR_HOST_URL \
+                          -Dsonar.login=$SONAR_TOKEN
+                    '''
                 }
             }
         }
