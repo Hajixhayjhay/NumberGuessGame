@@ -1,15 +1,16 @@
 pipeline {
-    agent { label 'worker-node' }   // Use your Jenkins agent
+    agent { label 'worker-node' }
 
     environment {
-        GIT_CREDENTIALS    = 'Github-token'       // GitHub token
-        SONARQUBE_ENV      = 'SonarQube'          // SonarQube secret text
-        TOMCAT_CREDENTIALS = 'tomcat-credentials' // SSH private key
-        TOMCAT_IP          = 'tomcat-ip'          // Tomcat server IP
-        NEXUS_CREDENTIALS  = 'nexus-credentials'  // Username + Password
-        NEXUS_URL          = 'nexus-url'          // Nexus repo URL
-        EMAIL_CREDENTIALS  = 'email-credentials'  // SMTP Username/Password
-        RECIPIENT_EMAIL    = 'recipient-email'    // Email recipient
+        GIT_CREDENTIALS    = 'github-token'         // GitHub token (if repo is private)
+        SONARQUBE_ENV      = 'SonarQube'            // SonarQube server configured in Jenkins
+        SONAR_TOKEN        = 'SonarQube'            // Secret Text (token stored in Jenkins)
+        TOMCAT_CREDENTIALS = 'tomcat-credentials'   // SSH Username with private key
+        TOMCAT_IP          = 'tomcat-ip'            // Secret Text (IP address)
+        NEXUS_CREDENTIALS  = 'nexus-credentials'    // Username + Password
+        NEXUS_URL          = 'nexus-url'            // Secret Text (Nexus repo URL)
+        EMAIL_CREDENTIALS  = 'email-credentials'    // Jenkins credential for email
+        RECIPIENT_EMAIL    = 'recipient-email'      // Jenkins secret text for recipient
     }
 
     stages {
@@ -31,7 +32,9 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
-                    sh '/usr/share/maven/bin/mvn sonar:sonar'
+                    withCredentials([string(credentialsId: "${SONAR_TOKEN}", variable: 'SONAR_TOKEN')]) {
+                        sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN"
+                    }
                 }
             }
         }
@@ -88,12 +91,8 @@ pipeline {
             ]) {
                 mail to: "$TO_EMAIL",
                      from: "$EMAIL_USER",
-                     subject: "Jenkins Pipeline Failed",
-                     body: "The pipeline for NumberGuessGame has failed. Please check the logs.",
-                     smtpHost: "smtp.gmail.com",
-                     smtpPort: "587",
-                     smtpUsername: "$EMAIL_USER",
-                     smtpPassword: "$EMAIL_PASS"
+                     subject: "Jenkins Pipeline Failed: NumberGuessGame",
+                     body: "The pipeline has failed. Please check the Jenkins console output for details."
             }
         }
     }
