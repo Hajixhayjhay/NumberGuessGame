@@ -87,7 +87,7 @@
         <snapshotRepository>
             <id>nexus-snapshots</id>
             <name>Nexus Snapshots</name>
-            <url>http://34.229.160.201:8081/nexus/content/repositories/snapshots/</url>
+            <url>http://34.229.160.201:8081/nexus/content/repositories/nexus-snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
 
