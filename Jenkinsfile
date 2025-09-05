@@ -21,7 +21,6 @@ pipeline {
         RECIPIENT_EMAIL = credentials('recipient-email')
 
         // Tomcat SSH info
-        TOMCAT_CREDS = 'tomcat-credentials'
         TOMCAT_IP = credentials('tomcat-ip')
     }
 
@@ -81,8 +80,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['tomcat-credentials']) {
                     sh """
-                        scp target/NumberGuessGame-1.0-SNAPSHOT.war ec2-user@${TOMCAT_IP}:/opt/tomcat/webapps/
-                        ssh ec2-user@${TOMCAT_IP} 'sudo systemctl restart tomcat'
+                        scp -o StrictHostKeyChecking=no target/NumberGuessGame-1.0-SNAPSHOT.war ec2-user@${TOMCAT_IP}:/opt/tomcat/webapps/
+                        ssh -o StrictHostKeyChecking=no ec2-user@${TOMCAT_IP} 'sudo systemctl restart tomcat'
                     """
                 }
             }
