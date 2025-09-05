@@ -76,10 +76,17 @@ pipeline {
         stage('Deploy to Tomcat') {
             steps {
                 sshagent(credentials: ['tomcat-credentials']) {
-                    sh """
-                        scp -o StrictHostKeyChecking=no target/NumberGuessGame-1.0-SNAPSHOT.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
-                        ssh -o StrictHostKeyChecking=no ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
-                    """
+                    script {
+                        def warFile = "target/NumberGuessGame-1.0.war"
+                        if (fileExists(warFile)) {
+                            sh """
+                                scp -o StrictHostKeyChecking=no ${warFile} ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
+                                ssh -o StrictHostKeyChecking=no ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
+                            """
+                        } else {
+                            error "WAR file not found: ${warFile}"
+                        }
+                    }
                 }
             }
         }
