@@ -8,7 +8,7 @@
 
     <groupId>com.studentapp</groupId>
     <artifactId>NumberGuessGame</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
     <packaging>war</packaging>
 
     <name>Number Guessing Game</name>
@@ -65,15 +65,9 @@
     <!-- Nexus Deployment -->
     <distributionManagement>
         <repository>
-            <id>nexus-releases</id> <!-- used by Maven to match credentials -->
-            <name>Nexus-releases</name> <!-- human-readable label -->
-            <url>${nexus.release.url}</url> <!-- injected via Jenkins credentials -->
+            <id>nexus-releases</id>
+            <name>Nexus-releases</name>
         </repository>
-        <snapshotRepository>
-            <id>nexus-snapshots</id> <!-- used by Maven to match credentials -->
-            <name>Nexus-snapshots</name> <!-- human-readable label -->
-            <url>${nexus.snapshot.url}</url> <!-- injected via Jenkins credentials -->
-        </snapshotRepository>
     </distributionManagement>
 
 </project>
