@@ -2,14 +2,23 @@ pipeline {
     agent { label 'worker-node' }
 
     environment {
-        GIT_CREDENTIALS    = 'Github-token'         // GitHub token
-        SONARQUBE_ENV      = 'SonarQube'            // SonarQube server configured in Jenkins
-        SONAR_TOKEN        = 'SonarQube'            // Secret Text (token stored in Jenkins)
-        TOMCAT_CREDENTIALS = 'tomcat-credentials'   // SSH Username with private key
-        TOMCAT_IP          = 'tomcat-ip'            // Secret Text (IP address)
-        NEXUS_CREDENTIALS  = 'nexus-credentials'    // Username + Password
-        NEXUS_URL          = 'nexus-release-url'    // Secret Text (Nexus repo URL)
-        TO_EMAIL           = 'recipient-email'      // Recipient email
+        // GitHub
+        GIT_CREDENTIALS    = 'Github-token'
+
+        // SonarQube
+        SONARQUBE_ENV      = 'SonarQube'
+        SONAR_TOKEN        = credentials('SonarQube')   // Secret Text
+
+        // Tomcat
+        TOMCAT_CREDENTIALS = 'tomcat-credentials'
+        TOMCAT_IP          = credentials('tomcat-ip')   // Secret Text
+
+        // Nexus
+        NEXUS_CREDENTIALS  = 'nexus-credentials'
+        NEXUS_RELEASE_URL  = credentials('nexus-release-url')
+
+        // Email
+        TO_EMAIL           = credentials('recipient-email')
     }
 
     stages {
@@ -31,9 +40,10 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
-                    withCredentials([string(credentialsId: "${SONAR_TOKEN}", variable: 'SONAR_TOKEN')]) {
-                        sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN"
-                    }
+                    sh """
+                        /usr/share/maven/bin/mvn sonar:sonar \
+                            -Dsonar.token=${SONAR_TOKEN}
+                    """
                 }
             }
         }
@@ -42,15 +52,12 @@ pipeline {
             steps {
                 echo 'Uploading artifact to Nexus...'
                 withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}",
-                                                 usernameVariable: 'NEXUS_USER',
-                                                 passwordVariable: 'NEXUS_PASS'),
-                                 string(credentialsId: "${NEXUS_URL}", variable: 'NEXUS_URL')]) {
+                                                  usernameVariable: 'NEXUS_USER',
+                                                  passwordVariable: 'NEXUS_PASS')]) {
                     sh """
                         /usr/share/maven/bin/mvn deploy \
                             -DskipTests=true \
-                            -DaltDeploymentRepository=nexus-releases::default::$NEXUS_URL \
-                            -Dnexus.username=$NEXUS_USER \
-                            -Dnexus.password=$NEXUS_PASS
+                            -DaltDeploymentRepository=nexus::default::${NEXUS_RELEASE_URL}
                     """
                 }
             }
@@ -61,11 +68,10 @@ pipeline {
                 echo 'Deploying WAR to Tomcat...'
                 withCredentials([sshUserPrivateKey(credentialsId: "${TOMCAT_CREDENTIALS}",
                                                   keyFileVariable: 'SSH_KEY',
-                                                  usernameVariable: 'SSH_USER'),
-                                 string(credentialsId: "${TOMCAT_IP}", variable: 'TOMCAT_IP')]) {
+                                                  usernameVariable: 'SSH_USER')]) {
                     sh """
-                        scp -i $SSH_KEY target/NumberGuessGame-1.0.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
-                        ssh -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
+                        scp -i $SSH_KEY target/NumberGuessGame-1.0.war $SSH_USER@${TOMCAT_IP}:/opt/tomcat/webapps/
+                        ssh -i $SSH_KEY $SSH_USER@${TOMCAT_IP} 'sudo systemctl restart tomcat'
                     """
                 }
             }
