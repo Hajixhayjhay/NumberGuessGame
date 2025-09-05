@@ -50,48 +50,52 @@ pipeline {
         }
 
         stage('Upload to Nexus Snapshot') {
-    steps {
-        echo 'Uploading artifact to Nexus Snapshot repository...'
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'nexus-credentials',
-                usernameVariable: 'NEXUS_USER',
-                passwordVariable: 'NEXUS_PASS'
-            ),
-            string(
-                credentialsId: 'nexus-snapshot-url',
-                variable: 'NEXUS_SNAPSHOT_URL'
-            )
-        ]) {
-            sh """
-                /usr/share/maven/bin/mvn deploy \
-                    -DskipTests=true \
-                    -DaltDeploymentRepository=nexus-snapshots::default::$NEXUS_SNAPSHOT_URL \
-                    -Dnexus.username=$NEXUS_USER \
-                    -Dnexus.password=$NEXUS_PASS
-            """
+            steps {
+                echo 'Uploading artifact to Nexus Snapshot repository...'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    ),
+                    string(
+                        credentialsId: 'nexus-snapshot-url',
+                        variable: 'NEXUS_SNAPSHOT_URL'
+                    )
+                ]) {
+                    sh """
+                        /usr/share/maven/bin/mvn deploy \
+                            -DskipTests=true \
+                            -DaltDeploymentRepository=nexus-snapshots::default::$NEXUS_SNAPSHOT_URL \
+                            -Dnexus.username=$NEXUS_USER \
+                            -Dnexus.password=$NEXUS_PASS
+                    """
+                }
+            }
         }
-    }
-}
 
         stage('Deploy to Tomcat') {
-    steps {
-        echo 'Deploying WAR to Tomcat...'
-        withCredentials([
-            sshUserPrivateKey(credentialsId: 'ssh-key',  // your Jenkins credential ID
-                              keyFileVariable: 'SSH_KEY', 
-                              usernameVariable: 'SSH_USER')
-        ]) {
-            sh """
-                # SCP WAR to Tomcat
-                scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
-                
-                # Restart Tomcat
-                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
-            """
+            steps {
+                echo 'Deploying WAR to Tomcat...'
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ssh-key',  
+                        keyFileVariable: 'SSH_KEY', 
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
+                    sh """
+                        # SCP WAR to Tomcat
+                        scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+                        
+                        # Restart Tomcat
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
+                    """
+                }
+            }
         }
+
     }
-}
 
     post {
         success {
