@@ -74,26 +74,25 @@ pipeline {
         }
 
         stage('Deploy to Tomcat') {
-            steps {
-                echo 'Deploying WAR to Tomcat...'
-                withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: 'tomcat-credentials',
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
-                    )
-                ]) {
-                    sh """
-                        # SCP WAR to Tomcat
-                        scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
-
-                        # Restart Tomcat
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
-                    """
-                }
-            }
+    steps {
+        echo 'Deploying WAR to Tomcat...'
+        withCredentials([
+            sshUserPrivateKey(
+                credentialsId: 'tomcat-credentials',  // your Jenkins SSH credential ID
+                keyFileVariable: 'SSH_KEY',           // path to private key
+                usernameVariable: 'SSH_USER'          // SSH username
+            )
+        ]) {
+            sh """
+                # SCP WAR to Tomcat
+                scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@3.12.34.56:/opt/tomcat/webapps/
+                
+                # Restart Tomcat
+                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@3.12.34.56 'sudo systemctl restart tomcat'
+            """
         }
     }
+}
 
     post {
         success {
