@@ -4,8 +4,8 @@ pipeline {
     environment {
         // Nexus credentials
         NEXUS_CRED = credentials('nexus-credentials')
-        NEXUS_USER = "${NEXUS_CRED_USR}"   // Jenkins automatically injects username
-        NEXUS_PASS = "${NEXUS_CRED_PSW}"   // Jenkins automatically injects password
+        NEXUS_USER = "${NEXUS_CRED_USR}"
+        NEXUS_PASS = "${NEXUS_CRED_PSW}"
 
         // Nexus URLs
         NEXUS_SNAPSHOT_URL = credentials('nexus-snapshot-url')
@@ -21,6 +21,7 @@ pipeline {
         RECIPIENT_EMAIL = credentials('recipient-email')
 
         // Tomcat SSH info
+        TOMCAT_CREDS = 'tomcat-credentials'
         TOMCAT_IP = credentials('tomcat-ip')
     }
 
@@ -49,9 +50,7 @@ pipeline {
         }
 
         stage('Upload to Nexus SNAPSHOT') {
-            when {
-                branch 'dev'
-            }
+            when { branch 'dev' }
             steps {
                 sh """
                     /usr/share/maven/bin/mvn deploy \
@@ -63,9 +62,7 @@ pipeline {
         }
 
         stage('Upload to Nexus RELEASE') {
-            when {
-                branch 'main'
-            }
+            when { branch 'main' }
             steps {
                 sh """
                     /usr/share/maven/bin/mvn deploy \
@@ -80,8 +77,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['tomcat-credentials']) {
                     sh """
-                        scp -o StrictHostKeyChecking=no target/NumberGuessGame-1.0-SNAPSHOT.war ec2-user@${TOMCAT_IP}:/opt/tomcat/webapps/
-                        ssh -o StrictHostKeyChecking=no ec2-user@${TOMCAT_IP} 'sudo systemctl restart tomcat'
+                        scp -o StrictHostKeyChecking=no target/NumberGuessGame-1.0-SNAPSHOT.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
+                        ssh -o StrictHostKeyChecking=no ubuntu@${TOMCAT_IP} 'sudo systemctl restart tomcat'
                     """
                 }
             }
