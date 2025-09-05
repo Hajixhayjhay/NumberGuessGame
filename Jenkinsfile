@@ -57,19 +57,21 @@ pipeline {
                 """
             }
         }
-
         stage('Deploy to Tomcat') {
             steps {
-                sshagent([TOMCAT_CRED]) {
+                echo 'Deploying WAR to Tomcat...'
+                withCredentials([sshUserPrivateKey(credentialsId: "${TOMCAT_CREDENTIALS}",
+                                                  keyFileVariable: 'SSH_KEY',
+                                                  usernameVariable: 'SSH_USER'),
+                                 string(credentialsId: "${TOMCAT_IP}", variable: 'TOMCAT_IP')]) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@${TOMCAT_IP} 'sudo mkdir -p /opt/tomcat/webapps'
-                        scp -o StrictHostKeyChecking=no target/NumberGuessGame-1.0.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
+                        scp -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+                        ssh -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
                     """
                 }
             }
         }
     }
-
     post {
         always {
             withCredentials([usernamePassword(credentialsId: 'email-credentials',
