@@ -23,7 +23,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout SCM') {
             steps {
                 git branch: 'dev',
@@ -75,38 +74,43 @@ pipeline {
         }
 
         stage('Deploy to Tomcat') {
-    steps {
-        echo 'Deploying WAR to Tomcat...'
-        withCredentials([
-            sshUserPrivateKey(
-                credentialsId: 'tomcat-credentials',  // your Jenkins SSH credential ID
-                keyFileVariable: 'SSH_KEY',           // path to private key
-                usernameVariable: 'SSH_USER'          // SSH username
-            )
-        ]) {
-            sh """
-                # SCP WAR to Tomcat
-                scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
-                
-                # Restart Tomcat
-                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
-            """
+            steps {
+                echo 'Deploying WAR to Tomcat...'
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'tomcat-credentials',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
+                    sh """
+                        # SCP WAR to Tomcat
+                        scp -o StrictHostKeyChecking=no -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+
+                        # Restart Tomcat
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
+                    """
+                }
+            }
         }
     }
-}
 
     post {
         success {
-            echo '✅ Pipeline completed successfully!'
-            mail to: "${TO_EMAIL}",
-                 subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
-                 body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
+                echo '✅ Pipeline completed successfully!'
+                mail to: "${TO_EMAIL}",
+                     subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
+                     body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+            }
         }
         failure {
-            echo '❌ Pipeline failed!'
-            mail to: "${TO_EMAIL}",
-                 subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
-                 body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
+                echo '❌ Pipeline failed!'
+                mail to: "${TO_EMAIL}",
+                     subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
+                     body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+            }
         }
     }
 }
