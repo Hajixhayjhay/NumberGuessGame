@@ -48,20 +48,24 @@ pipeline {
             }
         }
 
-        stage('Upload to Nexus') {
-            steps {
-                echo 'Uploading artifact to Nexus...'
-                withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}",
-                                                  usernameVariable: 'NEXUS_USER',
-                                                  passwordVariable: 'NEXUS_PASS')]) {
-                    sh """
-                        /usr/share/maven/bin/mvn deploy \
-                            -DskipTests=true \
-                            -DaltDeploymentRepository=nexus::default::${NEXUS_RELEASE_URL}
-                    """
-                }
-            }
+        stage('Upload Snapshot to Nexus') {
+    steps {
+        echo 'Uploading SNAPSHOT artifact to Nexus...'
+        withCredentials([
+            usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS'),
+            string(credentialsId: 'nexus-snapshot-url', variable: 'NEXUS_SNAPSHOT_URL')
+        ]) {
+            sh """
+                /usr/share/maven/bin/mvn deploy \
+                    -DskipTests=true \
+                    -DaltDeploymentRepository=nexus::default::${NEXUS_SNAPSHOT_URL} \
+                    -Dnexus.username=$NEXUS_USER \
+                    -Dnexus.password=$NEXUS_PASS
+            """
         }
+    }
+}
+
 
         stage('Deploy to Tomcat') {
             steps {
