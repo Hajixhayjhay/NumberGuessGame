@@ -3,42 +3,45 @@ pipeline {
 
     environment {
         // GitHub
-        GIT_CRED        = credentials('Github-token')
+        GIT_CREDENTIALS = credentials('Github-token')
+
+        // Tomcat
+        TOMCAT_IP       = credentials('tomcat-ip')
+        TOMCAT_CRED     = credentials('tomcat-credentials')
 
         // Nexus
-        NEXUS_SNAPSHOT_URL = credentials('nexus-snapshot-url')
-        NEXUS_RELEASE_URL  = credentials('nexus-release-url')
-        NEXUS_CRED         = credentials('nexus-credentials')
+        NEXUS_URL           = credentials('nexus-url')
+        NEXUS_SNAPSHOT_URL  = credentials('nexus-snapshot-url')
+        NEXUS_RELEASE_URL   = credentials('nexus-release-url')
+        NEXUS_CRED          = credentials('nexus-credentials')
 
         // SonarQube
         SONAR_TOKEN     = credentials('SonarQube')
 
-        // Tomcat
-        TOMCAT_IP       = credentials('tomcat-ip')
-        TOMCAT_CRED     = 'tomcat-credentials'
-
         // Email
         RECIPIENT_EMAIL = credentials('recipient-email')
+        EMAIL_CRED      = credentials('email-credentials')
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                git branch: 'dev', url: 'https://github.com/Hajixhayjhay/NumberGuessGame1.git', credentialsId: 'Github-token'
+                git(
+                    url: 'https://github.com/Hajixhayjhay/NumberGuessGame1.git',
+                    branch: 'dev',
+                    credentialsId: "${GIT_CREDENTIALS}"
+                )
             }
         }
 
         stage('Build & Test') {
             steps {
-                sh '/usr/share/maven/bin/mvn clean package -DskipTests=false'
+                sh '/usr/share/maven/bin/mvn clean package'
                 junit 'target/surefire-reports/*.xml'
             }
         }
 
         stage('SonarQube Analysis') {
-            environment {
-                SONAR_TOKEN = credentials('SonarQube')
-            }
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=${SONAR_TOKEN}"
@@ -46,20 +49,17 @@ pipeline {
             }
         }
 
-        
-        stage('Upload to Nexus') {
+        stage('Upload to Nexus SNAPSHOT') {
+            when {
+                branch 'dev'
+            }
             steps {
-                echo 'Uploading artifact to Nexus...'
-                withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS}",
-                                                 usernameVariable: 'NEXUS_USER',
-                                                 passwordVariable: 'NEXUS_PASS'),
-                                 string(credentialsId: "${NEXUS_URL}", variable: 'NEXUS_URL')]) {
+                withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USR', passwordVariable: 'NEXUS_PSW')]) {
                     sh """
                         /usr/share/maven/bin/mvn deploy \
-                            -DskipTests=true \
-                            -Dnexus.url=$NEXUS_URL \
-                            -Dnexus.username=$NEXUS_USER \
-                            -Dnexus.password=$NEXUS_PASS
+                        -DaltDeploymentRepository=snapshots::default::${NEXUS_SNAPSHOT_URL} \
+                        -DnexusUsername=${NEXUS_USR} \
+                        -DnexusPassword=${NEXUS_PSW}
                     """
                 }
             }
@@ -67,28 +67,28 @@ pipeline {
 
         stage('Deploy to Tomcat') {
             steps {
-                echo 'Deploying WAR to Tomcat...'
-                withCredentials([sshUserPrivateKey(credentialsId: "${TOMCAT_CREDENTIALS}",
-                                                  keyFileVariable: 'SSH_KEY',
-                                                  usernameVariable: 'SSH_USER'),
-                                 string(credentialsId: "${TOMCAT_IP}", variable: 'TOMCAT_IP')]) {
+                sshagent(credentials: ['tomcat-credentials']) {
                     sh """
-                        scp -i $SSH_KEY target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
-                        ssh -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'sudo systemctl restart tomcat'
+                        ssh -o StrictHostKeyChecking=no ubuntu@${TOMCAT_IP} 'sudo mkdir -p /opt/tomcat/webapps'
+                        scp -o StrictHostKeyChecking=no target/NumberGuessGame-1.0.war ubuntu@${TOMCAT_IP}:/opt/tomcat/webapps/
                     """
                 }
             }
         }
     }
+
     post {
         always {
-            withCredentials([usernamePassword(credentialsId: 'email-credentials',
-                                             usernameVariable: 'EMAIL_CRED_USR',
-                                             passwordVariable: 'EMAIL_CRED_PSW')]) {
+            withCredentials([usernamePassword(credentialsId: 'email-credentials', usernameVariable: 'EMAIL_USR', passwordVariable: 'EMAIL_PSW')]) {
                 mail to: "${RECIPIENT_EMAIL}",
-                     from: "${EMAIL_CRED_USR}",
-                     subject: "Build ${currentBuild.fullDisplayName}",
-                     body: "Status: ${currentBuild.currentResult}"
+                     subject: "Jenkins Pipeline Result: ${currentBuild.fullDisplayName}",
+                     body: "Build Status: ${currentBuild.currentResult}",
+                     from: "${EMAIL_USR}",
+                     replyTo: "${EMAIL_USR}",
+                     smtpHost: 'smtp.yourserver.com',
+                     smtpPort: '587',
+                     smtpUsername: "${EMAIL_USR}",
+                     smtpPassword: "${EMAIL_PSW}"
             }
         }
     }
