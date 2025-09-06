@@ -1,6 +1,10 @@
 pipeline {
     agent { label 'worker-node' }
 
+    parameters {
+        string(name: 'APP_VERSION', defaultValue: '2.0-SNAPSHOT', description: 'Version to deploy from Nexus')
+    }
+
     environment {
         // GitHub
         GIT_CREDENTIALS    = 'Github-token'
@@ -15,8 +19,8 @@ pipeline {
 
         // Nexus
         NEXUS_CREDENTIALS  = 'nexus-credentials'
-        NEXUS_RELEASE_URL  = 'nexus-release-url'   // Secret text
-        NEXUS_SNAPSHOT_URL = 'nexus-snapshot-url'  // Secret text
+        NEXUS_RELEASE_URL  = 'nexus-release-url'
+        NEXUS_SNAPSHOT_URL = 'nexus-snapshot-url'
 
         // Email
         EMAIL_CREDENTIALS  = 'email-credentials'
@@ -70,35 +74,9 @@ pipeline {
             }
         }
 
-        stage('Deploy from Build') {
+        stage('Deploy from Nexus') {
             steps {
-                echo 'Deploying WAR from local build...'
-                withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: "${TOMCAT_CREDENTIALS}",
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
-                    ),
-                    string(credentialsId: "${TOMCAT_IP}", variable: 'TOMCAT_IP')
-                ]) {
-                    sh """
-                        scp -o StrictHostKeyChecking=no -i $SSH_KEY \
-                            target/NumberGuessGame-2.0-SNAPSHOT.war \
-                            $SSH_USER@$TOMCAT_IP:/home/$SSH_USER/
-
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
-                            mv /home/$SSH_USER/NumberGuessGame-2.0-SNAPSHOT.war /home/$SSH_USER/apache-tomcat-7.0.94/webapps/ &&
-                            /home/$SSH_USER/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
-                            /home/$SSH_USER/apache-tomcat-7.0.94/bin/startup.sh
-                        '
-                    """
-                }
-            }
-        }
-
-        stage('Download from Nexus & Deploy') {
-            steps {
-                echo 'Deploying WAR from Nexus Snapshot...'
+                echo "Deploying WAR version ${params.APP_VERSION} from Nexus..."
                 withCredentials([
                     usernamePassword(
                         credentialsId: "${NEXUS_CREDENTIALS}",
@@ -114,17 +92,22 @@ pipeline {
                     string(credentialsId: "${NEXUS_SNAPSHOT_URL}", variable: 'NEXUS_SNAPSHOT_URL')
                 ]) {
                     sh '''
+                        # Download WAR from Nexus
                         curl -u $NEXUS_USER:$NEXUS_PASS -o NumberGuessGame.war \
-                        "$NEXUS_SNAPSHOT_URL/com/studentapp/NumberGuessGame/2.0-SNAPSHOT/NumberGuessGame-2.0-SNAPSHOT.war"
+                        "$NEXUS_SNAPSHOT_URL/com/studentapp/NumberGuessGame/${APP_VERSION}/NumberGuessGame-${APP_VERSION}.war"
 
+                        # Copy WAR to Tomcat server
                         scp -o StrictHostKeyChecking=no -i $SSH_KEY NumberGuessGame.war $SSH_USER@$TOMCAT_IP:/home/$SSH_USER/
+                    '''
 
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
+                    sh """
+                        # Move WAR into Tomcat webapps and restart
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP "
                             mv /home/$SSH_USER/NumberGuessGame.war /home/$SSH_USER/apache-tomcat-7.0.94/webapps/ &&
                             /home/$SSH_USER/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
                             /home/$SSH_USER/apache-tomcat-7.0.94/bin/startup.sh
-                        '
-                    '''
+                        "
+                    """
                 }
             }
         }
@@ -132,34 +115,18 @@ pipeline {
 
     post {
         success {
-            withCredentials([
-                usernamePassword(
-                    credentialsId: "${EMAIL_CREDENTIALS}",
-                    usernameVariable: 'EMAIL_USER',
-                    passwordVariable: 'EMAIL_PASS'
-                )
-            ]) {
-                mail(
-                    to: 'recipient@example.com',
-                    subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
-                    body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
-                )
-            }
+            mail(
+                to: 'recipient@example.com',
+                subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
+                body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+            )
         }
         failure {
-            withCredentials([
-                usernamePassword(
-                    credentialsId: "${EMAIL_CREDENTIALS}",
-                    usernameVariable: 'EMAIL_USER',
-                    passwordVariable: 'EMAIL_PASS'
-                )
-            ]) {
-                mail(
-                    to: 'recipient@example.com',
-                    subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
-                    body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
-                )
-            }
+            mail(
+                to: 'recipient@example.com',
+                subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
+                body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+            )
         }
     }
 }
