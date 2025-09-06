@@ -91,24 +91,12 @@ pipeline {
         }
     }
 
+    
     post {
-        success {
-            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
-                mail(
-                    to: env.TO_EMAIL,
-                    subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
-                    body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
-                )
-            }
-        }
-        failure {
-            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
-                mail(
-                    to: env.TO_EMAIL,
-                    subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
-                    body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
-                )
-            }
+        always {
+            mail to: "${RECIPIENT_EMAIL}",
+                 subject: "Pipeline ${currentBuild.currentResult}: Job ${env.JOB_NAME} Build #${env.BUILD_NUMBER}",
+                 body: "Build finished with status: ${currentBuild.currentResult}\nCheck Jenkins for details."
         }
     }
 }
