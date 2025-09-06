@@ -3,16 +3,20 @@ pipeline {
 
     environment {
         // GitHub
-        GIT_CREDENTIALS = 'Github-token'
+        GIT_CREDENTIALS    = 'Github-token'
 
         // SonarQube
-        SONARQUBE_ENV = 'SonarQube'
-        SONAR_TOKEN   = 'SonarQube'
+        SONARQUBE_ENV      = 'SonarQube'
+        SONAR_TOKEN        = 'SonarQube'
+
+        // Tomcat
+        TOMCAT_CREDENTIALS = 'tomcat-credentials'  // SSH key + username
+        TOMCAT_URL         = 'tomcat-url'          // Secret text in Jenkins
 
         // Nexus
         NEXUS_CREDENTIALS  = 'nexus-credentials'
-        NEXUS_RELEASE_URL  = 'http://34.229.160.201:8081/nexus/content/repositories/releases/'
-        NEXUS_SNAPSHOT_URL = 'http://34.229.160.201:8081/nexus/content/repositories/snapshots/'
+        NEXUS_RELEASE_URL  = 'nexus-release-url'   // Secret text
+        NEXUS_SNAPSHOT_URL = 'nexus-snapshot-url'  // Secret text
     }
 
     stages {
@@ -46,10 +50,11 @@ pipeline {
                 echo 'Uploading artifact to Nexus Snapshot repository...'
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'nexus-credentials',
+                        credentialsId: "${NEXUS_CREDENTIALS}",
                         usernameVariable: 'NEXUS_USER',
                         passwordVariable: 'NEXUS_PASS'
-                    )
+                    ),
+                    string(credentialsId: "${NEXUS_SNAPSHOT_URL}", variable: 'NEXUS_SNAPSHOT_URL')
                 ]) {
                     sh """
                         /usr/share/maven/bin/mvn deploy \
@@ -67,18 +72,17 @@ pipeline {
                 echo 'Deploying WAR to Tomcat...'
                 withCredentials([
                     sshUserPrivateKey(
-                        credentialsId: 'tomcat-credentials', // SSH key + username
+                        credentialsId: "${TOMCAT_CREDENTIALS}",
                         keyFileVariable: 'SSH_KEY',
                         usernameVariable: 'SSH_USER'
                     ),
-                    string(
-                        credentialsId: 'tomcat-url',         // Tomcat server IP/hostname
-                        variable: 'TOMCAT_IP'
-                    )
+                    string(credentialsId: "${TOMCAT_URL}", variable: 'TOMCAT_IP')
                 ]) {
                     sh """
+                        # Move WAR to Tomcat webapps
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'mv /home/ubuntu/NumberGuessGame-1.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/'
 
+                        # Restart Tomcat
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '/home/ubuntu/apache-tomcat-7.0.94/bin/shutdown.sh || true'
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '/home/ubuntu/apache-tomcat-7.0.94/bin/startup.sh'
                     """
@@ -89,7 +93,7 @@ pipeline {
 
     post {
         success {
-            withCredentials([string(credentialsId: 'email-credentials', variable: 'TO_EMAIL')]) {
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
                 mail(
                     to: env.TO_EMAIL,
                     subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
@@ -98,7 +102,7 @@ pipeline {
             }
         }
         failure {
-            withCredentials([string(credentialsId: 'email-credentials', variable: 'TO_EMAIL')]) {
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
                 mail(
                     to: env.TO_EMAIL,
                     subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
