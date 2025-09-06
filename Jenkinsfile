@@ -72,14 +72,14 @@ pipeline {
                 echo 'Deploying WAR to Tomcat...'
                 withCredentials([
                     sshUserPrivateKey(
-                        credentialsId: "${TOMCAT_CREDENTIALS}",
+                        credentialsId: 'tomcat-credentials',
                         keyFileVariable: 'SSH_KEY',
                         usernameVariable: 'SSH_USER'
                     ),
-                    string(credentialsId: "${TOMCAT_URL}", variable: 'TOMCAT_IP')
+                    string(credentialsId: 'tomcat-url', variable: 'TOMCAT_IP')
                 ]) {
                     sh """
-                        # Move WAR to Tomcat webapps
+                        # Move WAR into Tomcat's webapps
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'mv /home/ubuntu/NumberGuessGame-1.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/'
 
                         # Restart Tomcat
