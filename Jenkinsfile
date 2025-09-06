@@ -11,7 +11,7 @@ pipeline {
 
         // Tomcat
         TOMCAT_CREDENTIALS = 'tomcat-credentials'
-        TOMCAT_IP          = 'tomcat-ip'  // your public Tomcat IP
+        TOMCAT_IP          = 'tomcat-url'  // your public Tomcat IP
 
         // Nexus
         NEXUS_CREDENTIALS  = 'nexus-credentials'
