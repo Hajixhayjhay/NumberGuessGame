@@ -15,6 +15,10 @@ public class NumberGuessServlet extends HttpServlet {
     public void init() throws ServletException {
         targetNumber = new Random().nextInt(100) + 1;
     }
+    // ===== Public setter for testing =====
+    public void setTargetNumber(int number) {
+        this.targetNumber = number;
+    }
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -84,13 +88,3 @@ public class NumberGuessServlet extends HttpServlet {
         out.println("</html>");
     }
 }
-
-
-
-
-
-
-
-
-
-
