@@ -72,31 +72,48 @@ pipeline {
                 echo 'Deploying WAR to Tomcat...'
                 withCredentials([
                     sshUserPrivateKey(
-                        credentialsId: 'tomcat-credentials',
+                        credentialsId: "${TOMCAT_CREDENTIALS}",
                         keyFileVariable: 'SSH_KEY',
                         usernameVariable: 'SSH_USER'
                     ),
-                    string(credentialsId: 'tomcat-url', variable: 'TOMCAT_IP')
+                    string(credentialsId: "${TOMCAT_URL}", variable: 'TOMCAT_IP')
                 ]) {
                     sh """
-                        # Move WAR into Tomcat's webapps
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP 'mv /home/ubuntu/NumberGuessGame-1.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/'
+                        # Copy WAR from Jenkins worker to Tomcat home directory
+                        scp -o StrictHostKeyChecking=no -i $SSH_KEY \
+                            /home/ec2-user/workspace/NumberGuessGame-Pipeline/target/NumberGuessGame-1.0-SNAPSHOT.war \
+                            $SSH_USER@$TOMCAT_IP:/home/ubuntu/
 
-                        # Restart Tomcat
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '/home/ubuntu/apache-tomcat-7.0.94/bin/shutdown.sh || true'
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '/home/ubuntu/apache-tomcat-7.0.94/bin/startup.sh'
+                        # Move WAR into Tomcat webapps and restart Tomcat
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
+                            mv /home/ubuntu/NumberGuessGame-1.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/ &&
+                            /home/ubuntu/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
+                            /home/ubuntu/apache-tomcat-7.0.94/bin/startup.sh
+                        '
                     """
                 }
             }
         }
     }
 
-    
     post {
-        always {
-            mail to: "${RECIPIENT_EMAIL}",
-                 subject: "Pipeline ${currentBuild.currentResult}: Job ${env.JOB_NAME} Build #${env.BUILD_NUMBER}",
-                 body: "Build finished with status: ${currentBuild.currentResult}\nCheck Jenkins for details."
+        success {
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
+                mail(
+                    to: env.TO_EMAIL,
+                    subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
+                    body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+                )
+            }
+        }
+        failure {
+            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
+                mail(
+                    to: env.TO_EMAIL,
+                    subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
+                    body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+                )
+            }
         }
     }
 }
