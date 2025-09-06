@@ -17,6 +17,9 @@ pipeline {
         NEXUS_CREDENTIALS  = 'nexus-credentials'
         NEXUS_RELEASE_URL  = 'nexus-release-url'   // Secret text
         NEXUS_SNAPSHOT_URL = 'nexus-snapshot-url'  // Secret text
+
+        // Email credentials
+        EMAIL_CREDENTIALS  = 'email-credentials'   // username/password
     }
 
     stages {
@@ -39,7 +42,7 @@ pipeline {
             steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
                     withCredentials([string(credentialsId: "${SONAR_TOKEN}", variable: 'SONAR_TOKEN')]) {
-                        sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN"
+                        sh "/usr/share/maven/bin/mvn sonar:sonar -Dsonar.token=${SONAR_TOKEN}"
                     }
                 }
             }
@@ -59,9 +62,9 @@ pipeline {
                     sh """
                         /usr/share/maven/bin/mvn deploy \
                             -DskipTests=true \
-                            -DaltDeploymentRepository=nexus-snapshots::default::$NEXUS_SNAPSHOT_URL \
-                            -Dnexus.username=$NEXUS_USER \
-                            -Dnexus.password=$NEXUS_PASS
+                            -DaltDeploymentRepository=nexus-snapshots::default::${NEXUS_SNAPSHOT_URL} \
+                            -Dnexus.username=${NEXUS_USER} \
+                            -Dnexus.password=${NEXUS_PASS}
                     """
                 }
             }
@@ -78,19 +81,17 @@ pipeline {
                     ),
                     string(credentialsId: "${TOMCAT_URL}", variable: 'TOMCAT_IP')
                 ]) {
-                    sh """
-                        # Copy WAR from Jenkins worker to Tomcat home directory
-                        scp -o StrictHostKeyChecking=no -i $SSH_KEY \
-                            /home/ec2-user/workspace/NumberGuessGame-Pipeline/target/NumberGuessGame-1.0-SNAPSHOT.war \
-                            $SSH_USER@$TOMCAT_IP:/home/ubuntu/
+                    sh '''
+                        # Copy WAR to Tomcat server
+                        scp -o StrictHostKeyChecking=no -i "$SSH_KEY" /home/ec2-user/workspace/NumberGuessGame-Pipeline/target/NumberGuessGame-1.0-SNAPSHOT.war $SSH_USER@$TOMCAT_IP:/home/ubuntu/
 
-                        # Move WAR into Tomcat webapps and restart Tomcat
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
+                        # Move WAR into webapps and restart Tomcat
+                        ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" $SSH_USER@$TOMCAT_IP '
                             mv /home/ubuntu/NumberGuessGame-1.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/ &&
                             /home/ubuntu/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
                             /home/ubuntu/apache-tomcat-7.0.94/bin/startup.sh
                         '
-                    """
+                    '''
                 }
             }
         }
@@ -98,20 +99,45 @@ pipeline {
 
     post {
         success {
-            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
+            withCredentials([
+                usernamePassword(
+                    credentialsId: "${EMAIL_CREDENTIALS}",
+                    usernameVariable: 'EMAIL_USER',
+                    passwordVariable: 'EMAIL_PASS'
+                )
+            ]) {
                 mail(
-                    to: env.TO_EMAIL,
+                    to: 'recipient@example.com',   // Replace with actual recipient
+                    from: env.EMAIL_USER,
                     subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
-                    body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+                    body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}",
+                    smtpHost: 'smtp.gmail.com',
+                    smtpPort: '465',
+                    smtpUsername: env.EMAIL_USER,
+                    smtpPassword: env.EMAIL_PASS,
+                    useSsl: true
                 )
             }
         }
+
         failure {
-            withCredentials([string(credentialsId: 'recipient-email', variable: 'TO_EMAIL')]) {
+            withCredentials([
+                usernamePassword(
+                    credentialsId: "${EMAIL_CREDENTIALS}",
+                    usernameVariable: 'EMAIL_USER',
+                    passwordVariable: 'EMAIL_PASS'
+                )
+            ]) {
                 mail(
-                    to: env.TO_EMAIL,
+                    to: 'recipient@example.com',
+                    from: env.EMAIL_USER,
                     subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
-                    body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+                    body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}",
+                    smtpHost: 'smtp.gmail.com',
+                    smtpPort: '465',
+                    smtpUsername: env.EMAIL_USER,
+                    smtpPassword: env.EMAIL_PASS,
+                    useSsl: true
                 )
             }
         }
