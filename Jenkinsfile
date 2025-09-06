@@ -84,12 +84,12 @@ pipeline {
                     sh """
                         # Copy WAR to remote server
                         scp -o StrictHostKeyChecking=no -i $SSH_KEY \
-                            /home/ec2-user/workspace/NumberGuessGame-Pipeline/target/NumberGuessGame-1.0-SNAPSHOT.war \
+                            /home/ec2-user/workspace/NumberGuessGame-Pipeline/target/NumberGuessGame-2.0-SNAPSHOT.war \
                             $SSH_USER@$TOMCAT_IP:/home/ubuntu/
 
                         # Move WAR to Tomcat webapps folder and restart Tomcat
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
-                            mv /home/ubuntu/NumberGuessGame-1.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/ &&
+                            mv /home/ubuntu/NumberGuessGame-2.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/ &&
                             /home/ubuntu/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
                             /home/ubuntu/apache-tomcat-7.0.94/bin/startup.sh
                         '
