@@ -99,6 +99,31 @@ pipeline {
         }
     }
 
+
+    stage('Download from Nexus & Deploy') {
+    steps {
+        withCredentials([usernamePassword(credentialsId: 'nexus-credentials', 
+                                          usernameVariable: 'NEXUS_USER', 
+                                          passwordVariable: 'NEXUS_PASS')]) {
+            sh '''
+                # Download the latest WAR from Nexus Snapshot repository
+                curl -u $NEXUS_USER:$NEXUS_PASS -o NumberGuessGame.war \
+                "$NEXUS_SNAPSHOT_URL/com/studentapp/NumberGuessGame/2.0-SNAPSHOT/NumberGuessGame-2.0-SNAPSHOT.war"
+
+                # Copy WAR to Tomcat server
+                scp -o StrictHostKeyChecking=no -i $SSH_KEY NumberGuessGame.war $SSH_USER@$TOMCAT_IP:/home/$SSH_USER/
+
+                # Move WAR into Tomcat webapps and restart
+                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
+                    mv /home/$SSH_USER/NumberGuessGame.war /home/$SSH_USER/apache-tomcat-7.0.94/webapps/ &&
+                    /home/$SSH_USER/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
+                    /home/$SSH_USER/apache-tomcat-7.0.94/bin/startup.sh
+                '
+            '''
+        }
+    }
+}
+
     post {
         success {
             withCredentials([
