@@ -18,7 +18,7 @@ pipeline {
         NEXUS_RELEASE_URL  = 'nexus-release-url'   // Secret text
         NEXUS_SNAPSHOT_URL = 'nexus-snapshot-url'  // Secret text
 
-        // Email (use credentials stored in Jenkins)
+        // Email
         EMAIL_CREDENTIALS  = 'email-credentials'
     }
 
@@ -70,9 +70,9 @@ pipeline {
             }
         }
 
-        stage('Deploy to Tomcat') {
+        stage('Deploy from Build') {
             steps {
-                echo 'Deploying WAR to Tomcat...'
+                echo 'Deploying WAR from local build...'
                 withCredentials([
                     sshUserPrivateKey(
                         credentialsId: "${TOMCAT_CREDENTIALS}",
@@ -82,47 +82,53 @@ pipeline {
                     string(credentialsId: "${TOMCAT_IP}", variable: 'TOMCAT_IP')
                 ]) {
                     sh """
-                        # Copy WAR to remote server
                         scp -o StrictHostKeyChecking=no -i $SSH_KEY \
-                            /home/ec2-user/workspace/NumberGuessGame-Pipeline/target/NumberGuessGame-2.0-SNAPSHOT.war \
-                            $SSH_USER@$TOMCAT_IP:/home/ubuntu/
+                            target/NumberGuessGame-2.0-SNAPSHOT.war \
+                            $SSH_USER@$TOMCAT_IP:/home/$SSH_USER/
 
-                        # Move WAR to Tomcat webapps folder and restart Tomcat
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
-                            mv /home/ubuntu/NumberGuessGame-2.0-SNAPSHOT.war /home/ubuntu/apache-tomcat-7.0.94/webapps/ &&
-                            /home/ubuntu/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
-                            /home/ubuntu/apache-tomcat-7.0.94/bin/startup.sh
+                            mv /home/$SSH_USER/NumberGuessGame-2.0-SNAPSHOT.war /home/$SSH_USER/apache-tomcat-7.0.94/webapps/ &&
+                            /home/$SSH_USER/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
+                            /home/$SSH_USER/apache-tomcat-7.0.94/bin/startup.sh
                         '
                     """
                 }
             }
         }
-    }
 
+        stage('Download from Nexus & Deploy') {
+            steps {
+                echo 'Deploying WAR from Nexus Snapshot...'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: "${NEXUS_CREDENTIALS}",
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    ),
+                    sshUserPrivateKey(
+                        credentialsId: "${TOMCAT_CREDENTIALS}",
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    ),
+                    string(credentialsId: "${TOMCAT_IP}", variable: 'TOMCAT_IP'),
+                    string(credentialsId: "${NEXUS_SNAPSHOT_URL}", variable: 'NEXUS_SNAPSHOT_URL')
+                ]) {
+                    sh '''
+                        curl -u $NEXUS_USER:$NEXUS_PASS -o NumberGuessGame.war \
+                        "$NEXUS_SNAPSHOT_URL/com/studentapp/NumberGuessGame/2.0-SNAPSHOT/NumberGuessGame-2.0-SNAPSHOT.war"
 
-    stage('Download from Nexus & Deploy') {
-    steps {
-        withCredentials([usernamePassword(credentialsId: 'nexus-credentials', 
-                                          usernameVariable: 'NEXUS_USER', 
-                                          passwordVariable: 'NEXUS_PASS')]) {
-            sh '''
-                # Download the latest WAR from Nexus Snapshot repository
-                curl -u $NEXUS_USER:$NEXUS_PASS -o NumberGuessGame.war \
-                "$NEXUS_SNAPSHOT_URL/com/studentapp/NumberGuessGame/2.0-SNAPSHOT/NumberGuessGame-2.0-SNAPSHOT.war"
+                        scp -o StrictHostKeyChecking=no -i $SSH_KEY NumberGuessGame.war $SSH_USER@$TOMCAT_IP:/home/$SSH_USER/
 
-                # Copy WAR to Tomcat server
-                scp -o StrictHostKeyChecking=no -i $SSH_KEY NumberGuessGame.war $SSH_USER@$TOMCAT_IP:/home/$SSH_USER/
-
-                # Move WAR into Tomcat webapps and restart
-                ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
-                    mv /home/$SSH_USER/NumberGuessGame.war /home/$SSH_USER/apache-tomcat-7.0.94/webapps/ &&
-                    /home/$SSH_USER/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
-                    /home/$SSH_USER/apache-tomcat-7.0.94/bin/startup.sh
-                '
-            '''
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '
+                            mv /home/$SSH_USER/NumberGuessGame.war /home/$SSH_USER/apache-tomcat-7.0.94/webapps/ &&
+                            /home/$SSH_USER/apache-tomcat-7.0.94/bin/shutdown.sh || true &&
+                            /home/$SSH_USER/apache-tomcat-7.0.94/bin/startup.sh
+                        '
+                    '''
+                }
+            }
         }
     }
-}
 
     post {
         success {
