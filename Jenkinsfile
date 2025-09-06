@@ -3,15 +3,11 @@ pipeline {
 
     environment {
         // GitHub
-        GIT_CREDENTIALS    = 'Github-token'
+        GIT_CREDENTIALS = 'Github-token'
 
         // SonarQube
-        SONARQUBE_ENV      = 'SonarQube'
-        SONAR_TOKEN        = 'SonarQube'
-
-        // Tomcat
-        TOMCAT_CREDENTIALS = 'tomcat-credentials'
-        TOMCAT_IP          = 'tomcat-url'  // your public Tomcat IP
+        SONARQUBE_ENV = 'SonarQube'
+        SONAR_TOKEN   = 'SonarQube'
 
         // Nexus
         NEXUS_CREDENTIALS  = 'nexus-credentials'
@@ -53,10 +49,6 @@ pipeline {
                         credentialsId: 'nexus-credentials',
                         usernameVariable: 'NEXUS_USER',
                         passwordVariable: 'NEXUS_PASS'
-                    ),
-                    string(
-                        credentialsId: 'nexus-snapshot-url',
-                        variable: 'NEXUS_SNAPSHOT_URL'
                     )
                 ]) {
                     sh """
@@ -75,9 +67,13 @@ pipeline {
                 echo 'Deploying WAR to Tomcat...'
                 withCredentials([
                     sshUserPrivateKey(
-                        credentialsId: 'tomcat-credentials',  // your saved SSH key + username
+                        credentialsId: 'tomcat-credentials', // SSH key + username
                         keyFileVariable: 'SSH_KEY',
                         usernameVariable: 'SSH_USER'
+                    ),
+                    string(
+                        credentialsId: 'tomcat-url',         // Tomcat server IP/hostname
+                        variable: 'TOMCAT_IP'
                     )
                 ]) {
                     sh """
@@ -85,7 +81,6 @@ pipeline {
 
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '/home/ubuntu/apache-tomcat-7.0.94/bin/shutdown.sh || true'
                         ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@$TOMCAT_IP '/home/ubuntu/apache-tomcat-7.0.94/bin/startup.sh'
-
                     """
                 }
             }
@@ -95,26 +90,20 @@ pipeline {
     post {
         success {
             withCredentials([string(credentialsId: 'email-credentials', variable: 'TO_EMAIL')]) {
-                script {
-                    echo '✅ Pipeline completed successfully!'
-                    mail(
-                        to: env.TO_EMAIL,
-                        subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
-                        body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
-                    )
-                }
+                mail(
+                    to: env.TO_EMAIL,
+                    subject: "✅ Build Success: ${currentBuild.fullDisplayName}",
+                    body: "Pipeline completed successfully.\nCheck console output at ${env.BUILD_URL}"
+                )
             }
         }
         failure {
             withCredentials([string(credentialsId: 'email-credentials', variable: 'TO_EMAIL')]) {
-                script {
-                    echo '❌ Pipeline failed!'
-                    mail(
-                        to: env.TO_EMAIL,
-                        subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
-                        body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
-                    )
-                }
+                mail(
+                    to: env.TO_EMAIL,
+                    subject: "❌ Build Failed: ${currentBuild.fullDisplayName}",
+                    body: "Pipeline failed.\nCheck console output at ${env.BUILD_URL}"
+                )
             }
         }
     }
