@@ -88,7 +88,7 @@ pipeline {
                     sh """
                         # Download latest WAR from Nexus Snapshot repository
                         curl -u $NEXUS_USER:$NEXUS_PASS -o NumberGuessGame.war \
-                        "$NEXUS_SNAPSHOT_URL/com/studentapp/NumberGuessGame/2.0-SNAPSHOT/NumberGuessGame-2.0-SNAPSHOT.war"
+                        "$NEXUS_SNAPSHOT_URL/com/studentapp/NumberGuessGame/1.0-SNAPSHOT/NumberGuessGame-1.0-SNAPSHOT.war"
 
                         # Copy WAR to Tomcat server
                         scp -o StrictHostKeyChecking=no -i $SSH_KEY NumberGuessGame.war $SSH_USER@$TOMCAT_IP:/home/$SSH_USER/
